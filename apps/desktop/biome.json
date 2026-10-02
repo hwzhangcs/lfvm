@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "files": {
+    "includes": ["src/**", "*.ts", "*.json", "!src/bindings.ts", "!src-tauri", "!dist"]
+  },
+  "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
+  "linter": { "enabled": true, "rules": { "preset": "recommended" } },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } }
+}

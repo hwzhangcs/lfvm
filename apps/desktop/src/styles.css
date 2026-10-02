@@ -1,0 +1,12 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  /* 界面文字不截断、控件不重叠（SRS 表 2-2：100%～200% 缩放） */
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}

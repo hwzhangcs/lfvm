@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "主窗口的最小权限：只开放核心事件与窗口能力。文件对话框和打开文件夹均由 Rust 端调用，前端不直接使用插件（LFVM-IF-05）。",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -1,0 +1,12 @@
+[package]
+name = "lfvm-platform"
+description = "LFVM 平台差异层：链接/云占位识别、原子替换、大小写策略、文件名合法性、受保护目录"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+tempfile.workspace = true

@@ -1,0 +1,27 @@
+[package]
+name = "lfvm-desktop"
+description = "LFVM 桌面外壳：把 lfvm-core 的功能暴露为界面命令"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+name = "lfvm_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+lfvm-core = { workspace = true, features = ["specta"] }
+serde.workspace = true
+specta.workspace = true
+tauri = { version = "2.12", features = ["specta"] }
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+specta-typescript.workspace = true
+tauri-plugin-dialog = "2.8"
+tauri-plugin-opener = "2.7"
+
+[target.'cfg(any(windows, target_os = "macos", target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2.5"
