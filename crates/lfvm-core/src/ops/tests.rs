@@ -553,7 +553,7 @@ fn excluded_original_and_save_as() {
     assert_eq!(r.status, OpStatus::Succeeded);
     let bsrc = SourceRef::Backup { backup_id: r.backup_id.unwrap() };
     let check = e.core.check_file_restore(&e.pid, &bsrc, "x.txt", &FileTarget::Original).unwrap();
-    assert_eq!(Path::new(&check.target_path), e.outside.canonicalize().unwrap().join("x.txt"));
+    assert_eq!(Path::new(&check.target_path), crate::paths::canonical(&e.outside).unwrap().join("x.txt"));
     e.core.restore_file(&file_req(&e, bsrc, "x.txt", check.confirm_token), &FileTarget::Original, &NoProgress).unwrap();
     assert_eq!(std::fs::read_to_string(e.outside.join("x.txt")).unwrap(), "outside edit");
 }

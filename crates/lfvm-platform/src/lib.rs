@@ -123,7 +123,8 @@ pub fn file_id(meta: &Metadata) -> Option<(u64, u64)> {
 /// 临时文件必须与目标位于同一目录（同一卷），这样替换是原子的：
 /// 目标要么仍是旧内容，要么已是新内容，不会出现写了一半的文件。
 pub fn atomic_replace(tmp: &Path, dst: &Path) -> io::Result<()> {
-    std::fs::File::open(tmp)?.sync_all()?;
+    // Windows 上刷盘（FlushFileBuffers）要求句柄有写权限，只读打开会报“拒绝访问”
+    std::fs::OpenOptions::new().write(true).open(tmp)?.sync_all()?;
     imp::atomic_replace(tmp, dst)
 }
 

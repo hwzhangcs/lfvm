@@ -393,7 +393,7 @@ mod tests {
         assert_eq!(std::fs::read_dir(&d).unwrap().count(), 3, "只有用户文件");
         std::fs::write(d.join("a.txt"), "changed copy").unwrap();
         assert_eq!(std::fs::read_to_string(e.work.join("a.txt")).unwrap(), "A");
-        assert_eq!(e.core.output_path(&e.pid, &r.operation_id).unwrap(), d.canonicalize().unwrap());
+        assert_eq!(e.core.output_path(&e.pid, &r.operation_id).unwrap(), crate::paths::canonical(&d).unwrap());
     }
 
     /// AC-0029、AC-0030：目标非空、与项目或历史存储重叠时拒绝；两个方案分别展开。
