@@ -2101,6 +2101,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "lfvm-tools"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "lfvm-core",
+]
+
+[[package]]
 name = "libappindicator"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

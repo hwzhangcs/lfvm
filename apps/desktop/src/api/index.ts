@@ -4,6 +4,7 @@
  */
 import { Channel, convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { commands, events, type ProgressEvent } from "../bindings";
+import { t } from "../locales/zh-CN";
 
 export type {
   Action,
@@ -131,7 +132,7 @@ export function newId(): string {
 export function errorMessage(e: unknown): string {
   if (e && typeof e === "object" && "message" in e && typeof e.message === "string") return e.message;
   if (typeof e === "string") return e;
-  return "发生了未知错误";
+  return t.errors.unknown;
 }
 
 export function errorCode(e: unknown): string | undefined {

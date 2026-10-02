@@ -1,0 +1,12 @@
+[package]
+name = "lfvm-tools"
+description = "LFVM 测试工具：生成性能数据集、性能测试、稳定性测试（SRS 第 5、6 章）"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+lfvm-core.workspace = true
+image.workspace = true

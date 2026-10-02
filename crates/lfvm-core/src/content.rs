@@ -3,6 +3,7 @@
 //! 历史文件只按纯文本或图片显示，任何内容都不会作为网页、脚本或程序执行。
 
 use std::io::{Cursor, Read};
+use std::sync::{Condvar, Mutex};
 
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
@@ -182,6 +183,71 @@ pub fn probe_image(bytes: &[u8]) -> Result<ImageInfo, String> {
     Ok(ImageInfo { format, width, height })
 }
 
+/// 同时解码的图片数上限：一张 4000 万像素的图片解码后约 160 MB，限制并发以控制内存（LFVM-P-11）。
+const DECODE_SLOTS: u32 = 2;
+
+struct Slots {
+    used: Mutex<u32>,
+    cv: Condvar,
+}
+
+static SLOTS: Slots = Slots { used: Mutex::new(0), cv: Condvar::new() };
+
+struct Permit;
+
+impl Permit {
+    fn acquire() -> Self {
+        let mut used = SLOTS.used.lock().unwrap_or_else(|e| e.into_inner());
+        while *used >= DECODE_SLOTS {
+            used = SLOTS.cv.wait(used).unwrap_or_else(|e| e.into_inner());
+        }
+        *used += 1;
+        Permit
+    }
+}
+
+impl Drop for Permit {
+    fn drop(&mut self) {
+        *SLOTS.used.lock().unwrap_or_else(|e| e.into_inner()) -= 1;
+        SLOTS.cv.notify_one();
+    }
+}
+
+/// 完整解码图片，确认它在可显示范围内且没有损坏（只读头部无法发现截断、数据损坏）。
+/// 同时解码的数量受限，以控制内存（LFVM-P-11）。
+pub fn decode_image(bytes: &[u8]) -> Result<(ImageInfo, image::DynamicImage), String> {
+    let info = probe_image(bytes)?;
+    let _permit = Permit::acquire();
+    let mut reader =
+        image::ImageReader::new(Cursor::new(bytes)).with_guessed_format().map_err(|_| "图片无法读取".to_string())?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(IMAGE_MAX_SIDE);
+    limits.max_image_height = Some(IMAGE_MAX_SIDE);
+    limits.max_alloc = Some(512 * 1024 * 1024);
+    reader.limits(limits);
+    let img = reader.decode().map_err(|_| "图片已损坏，无法显示".to_string())?;
+    // JPEG 解码器会容忍截断（缺失部分填充为灰色），需另行检查文件是否完整
+    if info.format == ImageFormat::Jpeg && !jpeg_complete(bytes) {
+        return Err("图片不完整（可能已损坏），无法显示".into());
+    }
+    Ok((info, img))
+}
+
+/// JPEG 是否完整：最后一个扫描段起始标记（FF DA）之后必须有图像结束标记（FF D9）。
+/// 压缩数据中的 0xFF 总会被转义（后接 00 或复位标记），因此 FF D9 不会出现在扫描数据内部。
+fn jpeg_complete(bytes: &[u8]) -> bool {
+    let last_sos = bytes.windows(2).rposition(|w| w == [0xFF, 0xDA]);
+    match last_sos {
+        Some(i) => bytes[i..].windows(2).any(|w| w == [0xFF, 0xD9]),
+        None => false,
+    }
+}
+
+/// 检查图片能否显示（不保留解码结果）。
+pub fn check_image(bytes: &[u8]) -> Result<ImageInfo, String> {
+    decode_image(bytes).map(|(info, _)| info)
+}
+
 /// 解码后的文本。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecodedText {
@@ -278,7 +344,7 @@ pub(crate) fn preview_object(store: &ObjectStore, hash: &str, size: u64) -> Prev
             return unsupported("图片超过 20 MB，不显示内容".into());
         }
         return match read_object(store, hash, IMAGE_MAX_BYTES) {
-            Ok(bytes) => match probe_image(&bytes) {
+            Ok(bytes) => match check_image(&bytes) {
                 Ok(info) => PreviewContent::Image { hash: hash.to_owned(), info },
                 Err(r) => unsupported(r),
             },
@@ -329,7 +395,7 @@ impl Core {
         }
         let store = ObjectStore::new(&self.project_store_dir(project_id));
         let bytes = read_object(&store, hash, IMAGE_MAX_BYTES)?;
-        let info = probe_image(&bytes).map_err(|r| CoreError::new(ErrorCode::InvalidInput, r))?;
+        let info = check_image(&bytes).map_err(|r| CoreError::new(ErrorCode::InvalidInput, r))?;
         Ok((bytes, info.format.mime()))
     }
 }
@@ -342,6 +408,26 @@ mod tests {
         let mut out = Vec::new();
         image::RgbImage::new(w, h).write_to(&mut Cursor::new(&mut out), image::ImageFormat::Png).unwrap();
         out
+    }
+
+    /// 截断的图片头部完好，但不能显示（AC-0012、AC-0022）。
+    #[test]
+    fn truncated_images_are_reported_as_broken() {
+        let mut p = Vec::new();
+        image::RgbImage::from_fn(256, 256, |x, y| image::Rgb([x as u8, y as u8, (x ^ y) as u8]))
+            .write_to(&mut Cursor::new(&mut p), image::ImageFormat::Png)
+            .unwrap();
+        assert!(check_image(&p).is_ok());
+        let mut jpg = Vec::new();
+        image::RgbImage::from_fn(256, 256, |x, y| image::Rgb([x as u8, y as u8, (x ^ y) as u8]))
+            .write_to(&mut Cursor::new(&mut jpg), image::ImageFormat::Jpeg)
+            .unwrap();
+        assert!(check_image(&jpg).is_ok());
+        for bytes in [&p, &jpg] {
+            let cut = &bytes[..bytes.len() / 3];
+            assert!(probe_image(cut).is_ok(), "头部仍可读");
+            assert!(check_image(cut).is_err(), "完整解码发现损坏");
+        }
     }
 
     #[test]

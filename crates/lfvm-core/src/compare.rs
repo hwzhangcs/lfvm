@@ -13,7 +13,7 @@ use similar::{Algorithm, ChangeTag, TextDiff};
 use crate::Core;
 use crate::changes::{Manifest, load_manifest};
 use crate::content::{
-    IMAGE_MAX_BYTES, ImageInfo, SourceRef, TEXT_MAX_BYTES, check_source, decode_text, probe_image, read_object,
+    IMAGE_MAX_BYTES, ImageInfo, SourceRef, TEXT_MAX_BYTES, check_image, check_source, decode_text, read_object,
     sniff_image,
 };
 use crate::error::{CoreError, CoreResult, ErrorCode};
@@ -242,7 +242,7 @@ pub(crate) fn diff_objects(store: &ObjectStore, a: Option<&str>, b: Option<&str>
     if is_image {
         let side = |h: Option<&str>| {
             h.map(|h| {
-                match read_object(store, h, IMAGE_MAX_BYTES).map_err(|e| e.message).and_then(|b| probe_image(&b)) {
+                match read_object(store, h, IMAGE_MAX_BYTES).map_err(|e| e.message).and_then(|b| check_image(&b)) {
                     Ok(info) => ImageSide { hash: h.to_owned(), info: Some(info), reason: None },
                     Err(r) => ImageSide { hash: h.to_owned(), info: None, reason: Some(r) },
                 }

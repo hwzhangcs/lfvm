@@ -52,6 +52,9 @@ jobs:
       - name: Rust 测试（同时重新生成 bindings.ts）
         run: cargo test --workspace
 
+      - name: 稳定性快速检查（各平台跑一遍完整操作序列）
+        run: cargo run -q -p lfvm-tools -- stress target/stress-check --rounds 2 --interval-secs 0
+
       - name: bindings.ts 与 Rust 类型一致
         run: git diff --exit-code apps/desktop/src/bindings.ts
 

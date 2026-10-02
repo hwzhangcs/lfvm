@@ -3,12 +3,11 @@
 
 use std::io::Cursor;
 use std::path::PathBuf;
-use std::sync::{Condvar, Mutex};
 
-use image::{ImageFormat, ImageReader, Limits};
+use image::ImageFormat;
 use rusqlite::{OptionalExtension, params};
 
-use crate::content::{IMAGE_MAX_BYTES, IMAGE_MAX_SIDE, probe_image, read_object};
+use crate::content::{IMAGE_MAX_BYTES, decode_image, read_object};
 use crate::error::{CoreError, CoreResult, ErrorCode};
 use crate::hash::is_valid_hash;
 use crate::store::ObjectStore;
@@ -16,48 +15,9 @@ use crate::{Core, new_id};
 
 pub const THUMB_MAX: u32 = 256;
 
-/// 同时解码的图片数上限：一张 4000 万像素的图片解码后约 160 MB，限制并发以控制内存（LFVM-P-11）。
-const DECODE_SLOTS: u32 = 2;
-
-struct Slots {
-    used: Mutex<u32>,
-    cv: Condvar,
-}
-
-static SLOTS: Slots = Slots { used: Mutex::new(0), cv: Condvar::new() };
-
-struct Permit;
-
-impl Permit {
-    fn acquire() -> Self {
-        let mut used = SLOTS.used.lock().unwrap_or_else(|e| e.into_inner());
-        while *used >= DECODE_SLOTS {
-            used = SLOTS.cv.wait(used).unwrap_or_else(|e| e.into_inner());
-        }
-        *used += 1;
-        Permit
-    }
-}
-
-impl Drop for Permit {
-    fn drop(&mut self) {
-        *SLOTS.used.lock().unwrap_or_else(|e| e.into_inner()) -= 1;
-        SLOTS.cv.notify_one();
-    }
-}
-
 /// 生成缩略图（PNG 编码）。
 pub fn make_thumbnail(bytes: &[u8]) -> Result<Vec<u8>, String> {
-    probe_image(bytes)?;
-    let _permit = Permit::acquire();
-    let mut reader =
-        ImageReader::new(Cursor::new(bytes)).with_guessed_format().map_err(|_| "图片无法读取".to_string())?;
-    let mut limits = Limits::default();
-    limits.max_image_width = Some(IMAGE_MAX_SIDE);
-    limits.max_image_height = Some(IMAGE_MAX_SIDE);
-    limits.max_alloc = Some(512 * 1024 * 1024);
-    reader.limits(limits);
-    let img = reader.decode().map_err(|_| "图片已损坏，无法生成缩略图".to_string())?;
+    let (_, img) = decode_image(bytes)?;
     let thumb = img.thumbnail(THUMB_MAX, THUMB_MAX);
     let mut out = Vec::new();
     thumb.write_to(&mut Cursor::new(&mut out), ImageFormat::Png).map_err(|_| "缩略图生成失败".to_string())?;

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/lfvm-platform", "crates/lfvm-core", "apps/desktop/src-tauri"]
+members = ["crates/lfvm-platform", "crates/lfvm-core", "apps/desktop/src-tauri", "tools/lfvm-tools"]
 
 [workspace.package]
 version = "0.1.0"

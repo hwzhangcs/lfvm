@@ -8,6 +8,8 @@
 crates/lfvm-platform/   平台差异层：链接/云占位识别、原子替换、大小写探测、文件名规则（Windows/macOS/Linux）
 crates/lfvm-core/       业务核心，不依赖 Tauri；全部功能与测试都在这里
   migrations/           SQLite 结构（对应 SRS 第 4 章）
+tools/lfvm-tools/       测试工具：生成数据集、性能测试、稳定性测试（不需要界面）
+docs/                   验收测试对照、可用性测试方案、性能测试记录
 apps/desktop/           桌面程序
   src-tauri/            Rust 外壳：界面命令、对话框、窗口
   src/                  React + Ant Design 前端
@@ -41,6 +43,34 @@ cd apps/desktop && pnpm lint && pnpm typecheck && pnpm test
 cd apps/desktop && pnpm tauri build
 ```
 
+## 测试工具（SRS 第 5、6 章）
+
+```bash
+cargo build --release -p lfvm-tools
+# 生成数据集 D1（1000 个文件，1 GiB；固定随机种子，可重复）
+./target/release/lfvm-tools gen ./bench/D1
+# 性能测试 P-05～P-09、P-11，每项 3 次，输出测试记录
+./target/release/lfvm-tools bench ./bench/work ./bench/D1 --out 性能测试记录.md
+# 稳定性测试 Q-06：标准为 8 轮、每 30 分钟一轮（快速检查可用 --rounds 2 --interval-secs 0）
+./target/release/lfvm-tools stress ./bench/stress --out 稳定性测试记录.md
+```
+
+验收条件与测试的对应关系见 `docs/验收测试对照.md`，可用性测试见 `docs/可用性测试方案.md`。
+
+## 安装与卸载（LFVM-O-04）
+
+- Windows 安装包（NSIS）按当前用户安装，不需要管理员权限。
+- 卸载时有“删除应用数据”复选框，**默认不勾选**；勾选后只删除历史存储
+  （`%LOCALAPPDATA%\com.lfvm.desktop`），任何项目文件夹都不会被删除。
+
+## 代码检查
+
+CI 会运行 `cargo fmt --check` 和 `cargo clippy -- -D warnings`。本地的 Rust 若不带这两个工具，可用 rustup 安装后运行：
+
+```bash
+cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings
+```
+
 ## 约定
 
 - 业务逻辑只写在 `lfvm-core`；`src-tauri/src/commands.rs` 只做参数转换。
@@ -59,4 +89,4 @@ cd apps/desktop && pnpm tauri build
 | **M4** ✅ | 方案：创建、改名、切换，多方案时间地图 | 4.1、4.2 |
 | **M5** ✅ | 搜索历史文件、缩略图、文件轨迹 | 3.4、3.5 |
 | **M6** ✅ | 展开、导出、存储占用与清理 | 4.3、4.4、5.1 |
-| M7 | 性能与稳定性测试、可用性测试、安装包 | 第 5、6 章 |
+| **M7** ✅ | 代码检查、错误日志、规模提示、性能与稳定性测试工具、验收对照、可用性测试方案 | 第 5、6 章 |
