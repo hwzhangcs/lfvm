@@ -47,11 +47,17 @@ export type {
   SaveResult,
   SchemeInfo,
   SchemeList,
+  SearchHit,
+  SearchPage,
+  SearchQuery,
   SourceRef,
   Stage,
   SwitchCheck,
   SwitchTarget,
   TimeMap,
+  Trail,
+  TrailEntry,
+  TrailState,
   VersionBrief,
 } from "../bindings";
 
@@ -79,6 +85,9 @@ export const queryKeys = {
   operation: (projectId: string, operationId: string) => ["operation", projectId, operationId] as const,
   incomplete: (projectId: string) => ["incomplete", projectId] as const,
   schemes: (projectId: string) => ["schemes", projectId] as const,
+  search: (projectId: string, q: unknown) => ["search", projectId, q] as const,
+  thumb: (projectId: string, hash: string) => ["thumb", projectId, hash] as const,
+  trail: (projectId: string, path: string, route: unknown) => ["trail", projectId, path, route] as const,
 };
 
 /** 改写工作区或历史的操作完成后，刷新该项目的全部相关数据。 */
@@ -91,6 +100,11 @@ export function invalidateProject(qc: import("@tanstack/react-query").QueryClien
 /** 历史图片的地址：由预览协议提供，只能取到本项目已登记的 PNG/JPEG 内容（LFVM-Q-07）。 */
 export function imageUrl(projectId: string, hash: string): string {
   return convertFileSrc(`${projectId}.${hash}`, "lfvm-preview");
+}
+
+/** 缩略图地址（最长边 256 像素）。 */
+export function thumbUrl(projectId: string, hash: string): string {
+  return convertFileSrc(`t.${projectId}.${hash}`, "lfvm-preview");
 }
 
 /** 用作查询键的来源标识。 */

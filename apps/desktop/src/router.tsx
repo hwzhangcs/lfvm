@@ -8,6 +8,7 @@ import { BackupsPage } from "./pages/BackupsPage";
 import { ComparePage } from "./pages/ComparePage";
 import { FeaturePlaceholder } from "./pages/FeaturePlaceholder";
 import { FileTreePage } from "./pages/FileTreePage";
+import { FindPage } from "./pages/FindPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { ProjectListPage } from "./pages/ProjectListPage";
 import { SchemesPage } from "./pages/SchemesPage";
@@ -55,7 +56,7 @@ const fileTreeRoute = createRoute({
 const findRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: "find",
-  component: () => <FeaturePlaceholder page="find" />,
+  component: FindPage,
 });
 const schemesRoute = createRoute({
   getParentRoute: () => projectRoute,

@@ -15,6 +15,8 @@ use lfvm_core::history::{HistoryEntry, TimeMap};
 use lfvm_core::ops::restore::{ImpactPlan, WorkspaceOpRequest};
 use lfvm_core::ops::single::{FileRestoreCheck, FileRestoreRequest, FileTarget};
 use lfvm_core::ops::{OperationDetail, OperationResult, OperationSummary};
+use lfvm_core::search::{SearchPage, SearchQuery};
+use lfvm_core::trail::Trail;
 use lfvm_core::scheme::{SchemeInfo, SchemeList, SwitchCheck, SwitchRequest, SwitchTarget};
 use lfvm_core::project::{AddCheck, DirChild, ProjectOverview, ProjectSummary, RuleView};
 use lfvm_core::version::{SaveRequest, SaveResult};
@@ -484,4 +486,30 @@ pub async fn switch_scheme(
     let task = state.tasks.start(&task_id);
     let progress = ChannelProgress::new(on_progress, task.flag.clone());
     blocking(&state, move |core| core.switch_scheme(&request, &progress)).await
+}
+
+// ───────────────────────── 找回文件 ─────────────────────────
+
+#[tauri::command]
+#[specta::specta]
+pub async fn search_files(state: State<'_, AppState>, project_id: String, query: SearchQuery) -> Result<SearchPage, CoreError> {
+    blocking(&state, move |core| core.search_files(&project_id, &query)).await
+}
+
+/// 确保缩略图已生成；失败时返回原因。成功后界面经预览协议加载 `t.<project_id>.<hash>`。
+#[tauri::command]
+#[specta::specta]
+pub async fn ensure_thumbnail(state: State<'_, AppState>, project_id: String, hash: String) -> Result<(), CoreError> {
+    blocking(&state, move |core| core.ensure_thumbnail(&project_id, &hash)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn file_trail(
+    state: State<'_, AppState>,
+    project_id: String,
+    path: String,
+    route: SwitchTarget,
+) -> Result<Trail, CoreError> {
+    blocking(&state, move |core| core.file_trail(&project_id, &path, &route)).await
 }

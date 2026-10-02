@@ -19,7 +19,10 @@ pub mod progress;
 pub mod project;
 pub mod scan;
 pub mod scheme;
+pub mod search;
 pub mod store;
+pub mod thumbs;
+pub mod trail;
 pub mod version;
 
 use std::collections::HashSet;

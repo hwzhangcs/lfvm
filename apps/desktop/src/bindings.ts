@@ -67,6 +67,10 @@ export const commands = {
 	renameScheme: (projectId: string, schemeId: string, name: string) => __TAURI_INVOKE<null>("rename_scheme", { projectId, schemeId, name }),
 	checkSwitch: (projectId: string, target: SwitchTarget, taskId: string, onProgress: Channel<ProgressEvent>) => __TAURI_INVOKE<SwitchCheck>("check_switch", { projectId, target, taskId, onProgress }),
 	switchScheme: (request: SwitchRequest, taskId: string, onProgress: Channel<ProgressEvent>) => __TAURI_INVOKE<OperationResult>("switch_scheme", { request, taskId, onProgress }),
+	searchFiles: (projectId: string, query: SearchQuery) => __TAURI_INVOKE<SearchPage>("search_files", { projectId, query }),
+	/**  确保缩略图已生成；失败时返回原因。成功后界面经预览协议加载 `t.<project_id>.<hash>`。 */
+	ensureThumbnail: (projectId: string, hash: string) => __TAURI_INVOKE<null>("ensure_thumbnail", { projectId, hash }),
+	fileTrail: (projectId: string, path: string, route: SwitchTarget) => __TAURI_INVOKE<Trail>("file_trail", { projectId, path, route }),
 };
 
 /** Events */
@@ -516,6 +520,11 @@ export type RuleView = {
 	match_count: number,
 };
 
+export type SameContent = {
+	path: string,
+	version: VersionBrief,
+};
+
 export type SaveRequest = {
 	project_id: string,
 	/**  界面为每次“确认保存”生成的标识；重复提交同一请求不会重复保存（LFVM-Q-05）。 */
@@ -567,6 +576,38 @@ export type SchemeList = {
 	default_active: boolean,
 };
 
+export type SearchHit = {
+	source: SourceRef,
+	/**  来源说明：“V12 名称”或安全备份的原因。 */
+	source_label: string,
+	/**  来源是版本时的序号。 */
+	seq: number | null,
+	path: string,
+	name: string,
+	size: number | null,
+	hash: string,
+	created_at: number,
+	/**  PNG/JPEG（按扩展名判断），界面为其显示缩略图。 */
+	is_image: boolean,
+};
+
+export type SearchPage = {
+	hits: SearchHit[],
+	total: number,
+	page: number,
+	page_size: number,
+};
+
+export type SearchQuery = {
+	name: string | null,
+	ext: string | null,
+	path: string | null,
+	/**  方案范围；null 表示全部历史。 */
+	scope: SwitchTarget | null,
+	/**  从 0 开始的页码。 */
+	page: number,
+};
+
 /**  历史文件的来源：某个版本或某个安全备份。 */
 export type SourceRef = { kind: "version"; version_id: string } | { kind: "backup"; backup_id: string };
 
@@ -614,6 +655,51 @@ export type TimeMap = {
 	default_head: string | null,
 	active_scheme_id: string | null,
 };
+
+export type Trail = {
+	path: string,
+	route_label: string,
+	/**  沿路线由早到晚。 */
+	entries: TrailEntry[],
+	segments: TrailSegment[],
+	/**  末端版本仍包含该路径（“尚未缺失”）。 */
+	still_present: boolean,
+	/**  路线中有内容已清理的版本，记录不完整。 */
+	incomplete: boolean,
+	/**  包含该路径的版本内容都已清理，无法预览或恢复。 */
+	all_cleared: boolean,
+	/**  其他路径中有完全相同内容的文件（只作提示）。 */
+	same_content: SameContent[],
+};
+
+export type TrailEntry = {
+	version: VersionBrief,
+	state: TrailState,
+	hash: string | null,
+	size: number | null,
+};
+
+/**  一段连续出现。 */
+export type TrailSegment = {
+	first: VersionBrief,
+	last: VersionBrief,
+	/**  这段之后第一个不含该路径的版本；末端仍包含时为 null。 */
+	first_missing: VersionBrief | null,
+	/**  首次缺失是因为排除未纳入。 */
+	missing_by_exclusion: boolean,
+};
+
+export type TrailState = 
+/**  包含该路径，内容与上一次出现时相同。 */
+"present" | 
+/**  包含该路径，且内容与上一次出现时不同（或首次出现）。 */
+"changed" | 
+/**  不包含该路径。 */
+"missing" | 
+/**  不包含该路径，且该路径在这个版本保存时被排除。 */
+"excluded" | 
+/**  版本内容已清理，无法判断。 */
+"unknown";
 
 export type VersionBrief = {
 	version_id: string,
