@@ -8,7 +8,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use lfvm_core::changes::ChangeSet;
+use lfvm_core::compare::{CompareResult, FileDiff};
+use lfvm_core::content::{FilePreview, SourceRef};
 use lfvm_core::exclude::ExclusionRule;
+use lfvm_core::history::{HistoryEntry, TimeMap};
 use lfvm_core::project::{AddCheck, DirChild, ProjectOverview, ProjectSummary, RuleView};
 use lfvm_core::version::{SaveRequest, SaveResult};
 use lfvm_core::{Core, CoreError, CoreResult, ErrorCode};
@@ -214,4 +217,58 @@ pub async fn list_workspace_dir(
     dir: Option<String>,
 ) -> Result<Vec<DirChild>, CoreError> {
     blocking(&state, move |core| core.list_workspace_dir(&project_id, dir.as_deref())).await
+}
+
+// ───────────────────────── 时间地图、历史文件、比较 ─────────────────────────
+
+#[tauri::command]
+#[specta::specta]
+pub async fn time_map(state: State<'_, AppState>, project_id: String) -> Result<TimeMap, CoreError> {
+    blocking(&state, move |core| core.time_map(&project_id)).await
+}
+
+/// 版本或安全备份中的全部文件与文件夹。
+#[tauri::command]
+#[specta::specta]
+pub async fn source_files(
+    state: State<'_, AppState>,
+    project_id: String,
+    source: SourceRef,
+) -> Result<Vec<HistoryEntry>, CoreError> {
+    blocking(&state, move |core| core.source_files(&project_id, &source)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn preview_file(
+    state: State<'_, AppState>,
+    project_id: String,
+    source: SourceRef,
+    path: String,
+) -> Result<FilePreview, CoreError> {
+    blocking(&state, move |core| core.preview_file(&project_id, &source, &path)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn compare_versions(
+    state: State<'_, AppState>,
+    project_id: String,
+    version_a: String,
+    version_b: String,
+    scope: Option<String>,
+) -> Result<CompareResult, CoreError> {
+    blocking(&state, move |core| core.compare_versions(&project_id, &version_a, &version_b, scope.as_deref())).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn diff_file(
+    state: State<'_, AppState>,
+    project_id: String,
+    version_a: String,
+    version_b: String,
+    path: String,
+) -> Result<FileDiff, CoreError> {
+    blocking(&state, move |core| core.diff_file(&project_id, &version_a, &version_b, &path)).await
 }

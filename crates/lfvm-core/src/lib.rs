@@ -4,11 +4,14 @@
 //! 桌面外壳只负责把这些功能暴露为界面命令。
 
 pub mod changes;
+pub mod compare;
+pub mod content;
 pub mod db;
 pub mod error;
 pub mod exclude;
 pub mod glob;
 pub mod hash;
+pub mod history;
 pub mod model;
 pub mod paths;
 pub mod progress;

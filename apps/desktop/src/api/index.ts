@@ -2,7 +2,7 @@
  * 后端调用入口。页面只通过这里访问后端，不直接 import bindings。
  * bindings.ts 由 Rust 端自动生成（`cargo test -p lfvm-desktop` 或 `pnpm tauri dev`）。
  */
-import { Channel, isTauri } from "@tauri-apps/api/core";
+import { Channel, convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { commands, events, type ProgressEvent } from "../bindings";
 
 export type {
@@ -11,18 +11,32 @@ export type {
   ChangeItem,
   ChangeKind,
   ChangeSet,
+  CompareItem,
+  CompareKind,
+  CompareResult,
   CoreError,
+  DiffLine,
   DirChild,
   ErrorCode,
   ExclusionRule,
+  FileDiff,
+  FilePreview,
+  HistoryEntry,
+  ImageSide,
+  MapNode,
+  MapScheme,
   PickedFolder,
+  PreviewContent,
   ProgressEvent,
   ProjectOverview,
   ProjectSummary,
   RuleType,
   RuleView,
   SaveResult,
+  SourceRef,
   Stage,
+  TimeMap,
+  VersionBrief,
 } from "../bindings";
 
 /** 是否运行在桌面程序中（否则是在浏览器里预览界面）。 */
@@ -39,7 +53,23 @@ export const queryKeys = {
   changes: (projectId: string) => ["changes", projectId] as const,
   exclusions: (projectId: string) => ["exclusions", projectId] as const,
   workspaceDir: (projectId: string, dir: string | null) => ["workspace-dir", projectId, dir] as const,
+  timeMap: (projectId: string) => ["time-map", projectId] as const,
+  sourceFiles: (projectId: string, sourceKey: string) => ["source-files", projectId, sourceKey] as const,
+  preview: (projectId: string, sourceKey: string, path: string) => ["preview", projectId, sourceKey, path] as const,
+  compare: (projectId: string, a: string, b: string, scope: string | null) =>
+    ["compare", projectId, a, b, scope] as const,
+  diff: (projectId: string, a: string, b: string, path: string) => ["diff", projectId, a, b, path] as const,
 };
+
+/** 历史图片的地址：由预览协议提供，只能取到本项目已登记的 PNG/JPEG 内容（LFVM-Q-07）。 */
+export function imageUrl(projectId: string, hash: string): string {
+  return convertFileSrc(`${projectId}.${hash}`, "lfvm-preview");
+}
+
+/** 用作查询键的来源标识。 */
+export function sourceKey(s: import("../bindings").SourceRef): string {
+  return s.kind === "version" ? `v:${s.version_id}` : `b:${s.backup_id}`;
+}
 
 export function newId(): string {
   return crypto.randomUUID();

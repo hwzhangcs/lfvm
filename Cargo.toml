@@ -21,6 +21,8 @@ unicode-normalization = "0.1"
 dunce = "1"
 sha2 = "0.10"
 rayon = "1"
+similar = "3"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 specta-typescript = "0.0.12"
 tempfile = "3"

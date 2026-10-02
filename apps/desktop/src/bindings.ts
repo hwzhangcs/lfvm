@@ -32,6 +32,12 @@ export const commands = {
 	countRuleMatches: (projectId: string, rules: ExclusionRule[]) => __TAURI_INVOKE<number[]>("count_rule_matches", { projectId, rules }),
 	saveExclusionRules: (projectId: string, rules: ExclusionRule[]) => __TAURI_INVOKE<null>("save_exclusion_rules", { projectId, rules }),
 	listWorkspaceDir: (projectId: string, dir: string | null) => __TAURI_INVOKE<DirChild[]>("list_workspace_dir", { projectId, dir }),
+	timeMap: (projectId: string) => __TAURI_INVOKE<TimeMap>("time_map", { projectId }),
+	/**  版本或安全备份中的全部文件与文件夹。 */
+	sourceFiles: (projectId: string, source: SourceRef) => __TAURI_INVOKE<HistoryEntry[]>("source_files", { projectId, source }),
+	previewFile: (projectId: string, source: SourceRef, path: string) => __TAURI_INVOKE<FilePreview>("preview_file", { projectId, source, path }),
+	compareVersions: (projectId: string, versionA: string, versionB: string, scope: string | null) => __TAURI_INVOKE<CompareResult>("compare_versions", { projectId, versionA, versionB, scope }),
+	diffFile: (projectId: string, versionA: string, versionB: string, path: string) => __TAURI_INVOKE<FileDiff>("diff_file", { projectId, versionA, versionB, path }),
 };
 
 /** Events */
@@ -96,12 +102,51 @@ export type ChangeSet = {
 	has_changes: boolean,
 };
 
+export type CompareCounts = {
+	added: number,
+	deleted: number,
+	modified: number,
+	type_changed: number,
+	excluded_in_b: number,
+};
+
+export type CompareItem = {
+	path: string,
+	kind: CompareKind,
+	/**  B 中的类型；B 中没有时为 A 中的类型。 */
+	entry_type: EntryType,
+	size_a: number | null,
+	size_b: number | null,
+};
+
+export type CompareKind = "added" | "deleted" | "modified" | "type_changed" | 
+/**  A 中有、B 中没有，且该路径在 B 保存时被排除（不计为删除）。 */
+"excluded_in_b";
+
+export type CompareResult = {
+	a: VersionBrief,
+	b: VersionBrief,
+	/**  只比较了这个文件夹（null 表示整个项目）。 */
+	scope: string | null,
+	items: CompareItem[],
+	counts: CompareCounts,
+};
+
 export type CoreError = {
 	code: ErrorCode,
 	/**  面向用户的中文说明。 */
 	message: string,
 	/**  涉及的路径（如有）。日志只记录错误码和路径，不记录文件正文（LFVM-Q-08）。 */
 	path: string | null,
+};
+
+export type DiffLine = {
+	tag: LineTag,
+	/**  A 中的行号（从 1 开始）。 */
+	old_no: number | null,
+	/**  B 中的行号（从 1 开始）。 */
+	new_no: number | null,
+	text: string,
 };
 
 /**  项目目录树中的一个子项（用于在界面中选择要排除的文件或文件夹）。 */
@@ -147,7 +192,9 @@ export type ErrorCode =
 /**  历史内容校验失败。 */
 "CONTENT_CORRUPTED" | "DATABASE" | "IO" | "INTERNAL" | 
 /**  没有需要保存的变化。 */
-"NOTHING_TO_SAVE";
+"NOTHING_TO_SAVE" | 
+/**  版本或安全备份的内容已清理。 */
+"CONTENT_CLEARED";
 
 export type ExclusionRule = {
 	relative_path: string,
@@ -156,9 +203,83 @@ export type ExclusionRule = {
 	enabled: boolean,
 };
 
+export type FileDiff = { kind: "text"; lines: DiffLine[]; encoding_a: string | null; encoding_b: string | null; 
+/**  换行符或文件末尾换行的差异说明。 */
+notes: string[] } | 
+/**  一侧不存在时为 null。 */
+{ kind: "image"; a: ImageSide | null; b: ImageSide | null } | 
+/**  只显示文件级状态，并说明原因。 */
+{ kind: "unsupported"; reason: string };
+
+export type FilePreview = {
+	path: string,
+	size: number,
+	hash: string,
+	content: PreviewContent,
+};
+
 /**  用户把文件或文件夹拖入窗口。拖入的不是文件夹时 `folder` 为 null。 */
 export type FolderDropped = {
 	folder: PickedFolder | null,
+};
+
+/**  历史版本中的一个文件或文件夹。 */
+export type HistoryEntry = {
+	path: string,
+	entry_type: EntryType,
+	size: number | null,
+	hash: string | null,
+	/**  内容对象缺失时为 false（显示“内容损坏”）。 */
+	available: boolean,
+};
+
+export type ImageFormat = "png" | "jpeg";
+
+export type ImageInfo = {
+	format: ImageFormat,
+	width: number,
+	height: number,
+};
+
+/**  图片比较中的一侧。 */
+export type ImageSide = {
+	hash: string,
+	/**  可显示时给出尺寸；不可显示时为 null，并给出原因。 */
+	info: ImageInfo | null,
+	reason: string | null,
+};
+
+export type LineTag = "equal" | "insert" | "delete";
+
+/**  时间地图中的一个版本节点。 */
+export type MapNode = {
+	version_id: string,
+	seq: number,
+	parent_version_id: string | null,
+	/**  保存时所在的方案；null 表示在默认历史中保存。 */
+	origin_scheme_id: string | null,
+	/**  保存时所在方案的名称（方案已清理时仍保留，供显示）。 */
+	origin_scheme_name: string | null,
+	name: string,
+	note: string,
+	created_at: number,
+	file_count: number,
+	directory_count: number,
+	added: number,
+	modified: number,
+	deleted: number,
+	/**  内容已清理（占位节点）：不能浏览、比较或恢复。 */
+	cleared: boolean,
+};
+
+export type MapScheme = {
+	scheme_id: string,
+	name: string,
+	base_version_id: string,
+	head_version_id: string,
+	created_at: number,
+	/**  已清理的方案不在方案列表中显示，但其版本仍按原方案着色。 */
+	cleared: boolean,
 };
 
 /**  用户通过对话框或拖放选中的文件夹。 */
@@ -168,6 +289,12 @@ export type PickedFolder = {
 	/**  仅用于显示。 */
 	path: string,
 };
+
+export type PreviewContent = { kind: "text"; text: string; encoding: string } | 
+/**  图片经预览协议加载：`lfvm-preview://localhost/<project_id>/<hash>` */
+{ kind: "image"; hash: string; info: ImageInfo } | 
+/**  不显示内容，给出原因。 */
+{ kind: "unsupported"; reason: string };
 
 export type PreviousProject = {
 	project_id: string,
@@ -247,6 +374,9 @@ export type SchemeBrief = {
 	name: string,
 };
 
+/**  历史文件的来源：某个版本或某个安全备份。 */
+export type SourceRef = { kind: "version"; version_id: string } | { kind: "backup"; backup_id: string };
+
 /**  任务所处阶段，界面据此显示“正在扫描”“正在保存文件”等。 */
 export type Stage = 
 /**  列出文件夹内容 */
@@ -259,6 +389,15 @@ export type Stage =
 "verifying" | 
 /**  登记到数据库 */
 "committing";
+
+export type TimeMap = {
+	/**  按保存先后（序号）排列。 */
+	nodes: MapNode[],
+	/**  全部方案（含已清理），按创建先后排列。 */
+	schemes: MapScheme[],
+	default_head: string | null,
+	active_scheme_id: string | null,
+};
 
 export type VersionBrief = {
 	version_id: string,

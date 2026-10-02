@@ -2,6 +2,7 @@
 //! 前端只能调用这里登记的固定命令，不提供任意路径读写或执行命令的接口（LFVM-IF-05）。
 
 mod commands;
+mod preview;
 mod tasks;
 
 use std::collections::HashMap;
@@ -59,6 +60,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::count_rule_matches,
             commands::save_exclusion_rules,
             commands::list_workspace_dir,
+            commands::time_map,
+            commands::source_files,
+            commands::preview_file,
+            commands::compare_versions,
+            commands::diff_file,
         ])
         .events(collect_events![FolderDropped])
 }
@@ -98,6 +104,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .register_asynchronous_uri_scheme_protocol(preview::SCHEME, preview::handle)
         .invoke_handler(builder.invoke_handler())
         .on_window_event(|window, event| {
             if let WindowEvent::DragDrop(e) = event {

@@ -149,6 +149,7 @@ export function OverviewPage() {
           onDone={() => {
             setSaving(false);
             void queryClient.invalidateQueries({ queryKey: queryKeys.overview(projectId) });
+            void queryClient.invalidateQueries({ queryKey: queryKeys.timeMap(projectId) });
             void refresh();
           }}
         />

@@ -4,9 +4,12 @@
  */
 import { createHashHistory, createRootRoute, createRoute, createRouter, Outlet } from "@tanstack/react-router";
 import { ProjectLayout } from "./layouts/ProjectLayout";
+import { ComparePage } from "./pages/ComparePage";
 import { FeaturePlaceholder } from "./pages/FeaturePlaceholder";
+import { FileTreePage } from "./pages/FileTreePage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { ProjectListPage } from "./pages/ProjectListPage";
+import { TimeMapPage } from "./pages/TimeMapPage";
 
 const rootRoute = createRootRoute({ component: Outlet });
 
@@ -30,17 +33,22 @@ const overviewRoute = createRoute({
 const timeMapRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: "map",
-  component: () => <FeaturePlaceholder page="timeMap" />,
+  component: TimeMapPage,
 });
 const compareRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: "compare",
-  component: () => <FeaturePlaceholder page="compare" />,
+  validateSearch: (s: Record<string, unknown>): { a: string; b: string; scope?: string } => ({
+    a: typeof s.a === "string" ? s.a : "",
+    b: typeof s.b === "string" ? s.b : "",
+    scope: typeof s.scope === "string" && s.scope ? s.scope : undefined,
+  }),
+  component: ComparePage,
 });
 const fileTreeRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: "versions/$versionId/files",
-  component: () => <FeaturePlaceholder page="fileTree" />,
+  component: FileTreePage,
 });
 const findRoute = createRoute({
   getParentRoute: () => projectRoute,

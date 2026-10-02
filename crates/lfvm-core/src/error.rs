@@ -44,6 +44,8 @@ pub enum ErrorCode {
     Internal,
     /// 没有需要保存的变化。
     NothingToSave,
+    /// 版本或安全备份的内容已清理。
+    ContentCleared,
 }
 
 #[derive(Debug, Clone, thiserror::Error, Serialize)]

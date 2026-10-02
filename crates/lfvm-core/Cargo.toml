@@ -21,6 +21,8 @@ unicode-normalization.workspace = true
 dunce.workspace = true
 sha2.workspace = true
 rayon.workspace = true
+similar.workspace = true
+image.workspace = true
 specta = { workspace = true, optional = true }
 specta-typescript = { workspace = true, optional = true }
 
