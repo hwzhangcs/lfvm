@@ -49,13 +49,21 @@ jobs:
           cargo fmt --all --check
           cargo clippy --workspace --all-targets -- -D warnings
 
+      # Windows 上链接 Tauri 的测试程序缺少界面组件清单而无法启动（正式程序不受影响），
+      # 桌面外壳唯一的测试只用于生成 bindings.ts，与平台无关，因此只在 Linux、macOS 上运行。
       - name: Rust 测试（同时重新生成 bindings.ts）
-        run: cargo test --workspace
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cargo test --workspace --exclude lfvm-desktop
+          else
+            cargo test --workspace
+          fi
 
       - name: 稳定性快速检查（各平台跑一遍完整操作序列）
         run: cargo run -q -p lfvm-tools -- stress target/stress-check --rounds 2 --interval-secs 0
 
       - name: bindings.ts 与 Rust 类型一致
+        if: runner.os != 'Windows'
         run: git diff --exit-code apps/desktop/src/bindings.ts
 
       - name: 前端检查与测试

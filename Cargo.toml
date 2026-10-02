@@ -6,7 +6,7 @@ members = ["crates/lfvm-platform", "crates/lfvm-core", "apps/desktop/src-tauri",
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-authors = ["第三组：周瀚文、戴烨铭、张瀚文、邓皓云"]
+authors = ["第三组：周瀚文、张瀚文、戴烨铭、邓皓云"]
 
 [workspace.dependencies]
 lfvm-platform = { path = "crates/lfvm-platform" }
