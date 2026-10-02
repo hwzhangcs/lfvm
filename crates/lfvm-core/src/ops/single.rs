@@ -193,7 +193,7 @@ impl Core {
                     project_id: &req.project_id,
                     request_id: &req.request_id,
                     op_type: OpType::Restore,
-                    target_ref: TargetRef { label: label.clone(), scheme: None }.to_json(),
+                    target_ref: TargetRef { label: label.clone(), scheme: None, path: None }.to_json(),
                     resolved_version_id: match &req.source {
                         SourceRef::Version { version_id } => Some(version_id.as_str()),
                         SourceRef::Backup { .. } => None,

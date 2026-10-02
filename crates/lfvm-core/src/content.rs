@@ -292,6 +292,10 @@ pub(crate) fn preview_object(store: &ObjectStore, hash: &str, size: u64) -> Prev
 impl Core {
     /// 预览历史文件（来自版本或安全备份）。不在磁盘上创建任何文件，也不改变工作区。
     pub fn preview_file(&self, project_id: &str, source: &SourceRef, path: &str) -> CoreResult<FilePreview> {
+        let _lease = match source {
+            SourceRef::Version { version_id } => Some(self.lease(version_id)),
+            SourceRef::Backup { .. } => None,
+        };
         let rec = find_file(&self.db(), project_id, source, path)?;
         let (Some(hash), EntryType::File) = (rec.hash.clone(), rec.entry_type) else {
             return Err(CoreError::new(ErrorCode::InvalidInput, "这是一个文件夹"));

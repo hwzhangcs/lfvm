@@ -64,6 +64,9 @@ pub(crate) struct TargetRef {
     /// 切换方案时的目标方案；"default" 表示默认历史。
     #[serde(default)]
     pub scheme: Option<String>,
+    /// 展开、导出时的输出文件夹。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
 }
 
 impl TargetRef {
@@ -72,7 +75,7 @@ impl TargetRef {
     }
 
     pub(crate) fn parse(s: &str) -> TargetRef {
-        serde_json::from_str(s).unwrap_or(TargetRef { label: s.to_owned(), scheme: None })
+        serde_json::from_str(s).unwrap_or(TargetRef { label: s.to_owned(), scheme: None, path: None })
     }
 }
 
@@ -157,7 +160,7 @@ impl Core {
                 request_id: &req.request_id,
                 op_type: OpType::Restore,
                 reason: format!("恢复到{label}前"),
-                target: TargetRef { label, scheme: None },
+                target: TargetRef { label, scheme: None, path: None },
                 version_id: &req.version_id,
                 fingerprint: &req.fingerprint,
                 retry_of: None,

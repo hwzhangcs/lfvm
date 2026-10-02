@@ -255,7 +255,7 @@ impl Core {
                 request_id: &req.request_id,
                 op_type: OpType::Switch,
                 reason: format!("切换到{label}前"),
-                target: TargetRef { label, scheme: Some(scheme.unwrap_or_else(|| "default".into())) },
+                target: TargetRef { label, scheme: Some(scheme.unwrap_or_else(|| "default".into())), path: None },
                 version_id: &version,
                 fingerprint: &req.fingerprint,
                 retry_of: None,

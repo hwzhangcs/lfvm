@@ -14,12 +14,14 @@ pub mod hash;
 pub mod history;
 pub mod model;
 pub mod ops;
+pub mod output;
 pub mod paths;
 pub mod progress;
 pub mod project;
 pub mod scan;
 pub mod scheme;
 pub mod search;
+pub mod storage;
 pub mod store;
 pub mod thumbs;
 pub mod trail;
@@ -45,6 +47,27 @@ pub struct Core {
     conn: Mutex<Connection>,
     /// 正在进行写操作的项目。同一项目的保存、规则修改、恢复、切换和清理不得同时执行（LFVM-Q-05）。
     busy: Mutex<HashSet<String>>,
+    /// 正在被读取的版本（预览、比较、展开、导出）：版本 ID → 读取者数量。
+    /// 被读取的版本内容不得被清理（LFVM-Q-05、AT-07）。
+    leases: Mutex<std::collections::HashMap<String, usize>>,
+}
+
+/// 读取期间持有；释放时解除对版本内容的保护。
+pub(crate) struct ReadLease<'a> {
+    core: &'a Core,
+    version_id: String,
+}
+
+impl Drop for ReadLease<'_> {
+    fn drop(&mut self) {
+        let mut l = self.core.leases.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(n) = l.get_mut(&self.version_id) {
+            *n -= 1;
+            if *n == 0 {
+                l.remove(&self.version_id);
+            }
+        }
+    }
 }
 
 /// 写操作期间持有；释放时自动解除项目的写锁。
@@ -68,7 +91,12 @@ impl Core {
         }
         let data_dir = paths::canonical(&data_dir)?;
         let conn = db::open(&data_dir.join("lfvm.db"))?;
-        Ok(Self { data_dir, conn: Mutex::new(conn), busy: Mutex::new(HashSet::new()) })
+        Ok(Self {
+            data_dir,
+            conn: Mutex::new(conn),
+            busy: Mutex::new(HashSet::new()),
+            leases: Mutex::new(std::collections::HashMap::new()),
+        })
     }
 
     pub fn data_dir(&self) -> &Path {
@@ -83,6 +111,15 @@ impl Core {
     pub(crate) fn db(&self) -> MutexGuard<'_, Connection> {
         // 持锁线程 panic 后连接本身仍可用；事务未提交的部分已由 SQLite 回滚。
         self.conn.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub(crate) fn lease(&self, version_id: &str) -> ReadLease<'_> {
+        *self.leases.lock().unwrap_or_else(|e| e.into_inner()).entry(version_id.to_owned()).or_insert(0) += 1;
+        ReadLease { core: self, version_id: version_id.to_owned() }
+    }
+
+    pub(crate) fn is_leased(&self, version_id: &str) -> bool {
+        self.leases.lock().unwrap_or_else(|e| e.into_inner()).contains_key(version_id)
     }
 
     pub(crate) fn begin_write(&self, project_id: &str) -> CoreResult<WriteGuard<'_>> {

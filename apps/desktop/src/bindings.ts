@@ -71,6 +71,13 @@ export const commands = {
 	/**  确保缩略图已生成；失败时返回原因。成功后界面经预览协议加载 `t.<project_id>.<hash>`。 */
 	ensureThumbnail: (projectId: string, hash: string) => __TAURI_INVOKE<null>("ensure_thumbnail", { projectId, hash }),
 	fileTrail: (projectId: string, path: string, route: SwitchTarget) => __TAURI_INVOKE<Trail>("file_trail", { projectId, path, route }),
+	suggestOutputName: (projectId: string, source: OutputSource) => __TAURI_INVOKE<string>("suggest_output_name", { projectId, source }),
+	/**  展开或导出。`location_token` 来自 pick_folder；输出到该位置下名为 `folder_name` 的新文件夹。 */
+	outputVersion: (projectId: string, requestId: string, kind: OutputKind, source: OutputSource, locationToken: string, folderName: string, taskId: string, onProgress: Channel<ProgressEvent>) => __TAURI_INVOKE<OutputResult>("output_version", { projectId, requestId, kind, source, locationToken, folderName, taskId, onProgress }),
+	/**  在系统文件管理器中打开展开或导出的文件夹。 */
+	revealOutput: (projectId: string, operationId: string) => __TAURI_INVOKE<null>("reveal_output", { projectId, operationId }),
+	storageReport: (projectId: string) => __TAURI_INVOKE<StorageReport>("storage_report", { projectId }),
+	clearStorage: (projectId: string, request: ClearRequest) => __TAURI_INVOKE<ClearResult>("clear_storage", { projectId, request }),
 };
 
 /** Events */
@@ -114,6 +121,17 @@ export type BackupSummary = {
 	external_root: string | null,
 };
 
+export type BackupUsage = {
+	backup_id: string,
+	reason: string,
+	status: BackupStatus,
+	created_at: number,
+	file_count: number,
+	total_bytes: number,
+	exclusive_bytes: number,
+	protected: string | null,
+};
+
 export type ChangeCounts = {
 	/**  新增、修改、删除的文件数（不含文件夹）。 */
 	added: number,
@@ -152,6 +170,27 @@ export type ChangeSet = {
 	directory_count: number,
 	/**  有可保存的变化（尚无版本时总为 true，允许保存空文件夹）。 */
 	has_changes: boolean,
+};
+
+export type ClearItem = {
+	label: string,
+	ok: boolean,
+	message: string,
+};
+
+export type ClearRequest = {
+	request_id: string,
+	versions: string[],
+	backups: string[],
+	schemes: string[],
+};
+
+export type ClearResult = {
+	items: ClearItem[],
+	/**  实际释放的字节数（按真实删除结果统计）。 */
+	freed_bytes: number,
+	/**  未能删除、记为“待回收”的字节数。 */
+	pending_gc_bytes: number,
 };
 
 export type CompareCounts = {
@@ -434,6 +473,23 @@ export type OperationSummary = {
 	backup: BackupSummary | null,
 };
 
+export type OutputKind = "expand" | "export";
+
+export type OutputResult = {
+	operation_id: string,
+	status: OpStatus,
+	message: string,
+	/**  输出文件夹。 */
+	path: string,
+	source_label: string,
+	files_written: number,
+	total_files: number,
+	failed: ItemFailure[],
+};
+
+/**  输出哪个版本：直接指定版本，或某个方案（以其当前末端为准）。 */
+export type OutputSource = { kind: "version"; version_id: string } | { kind: "scheme"; scheme_id: string };
+
 /**  用户通过对话框或拖放选中的文件夹。 */
 export type PickedFolder = {
 	/**  一次性令牌，加入项目时交回。 */
@@ -576,6 +632,12 @@ export type SchemeList = {
 	default_active: boolean,
 };
 
+export type SchemeUsage = {
+	scheme_id: string,
+	name: string,
+	protected: string | null,
+};
+
 export type SearchHit = {
 	source: SourceRef,
 	/**  来源说明：“V12 名称”或安全备份的原因。 */
@@ -627,6 +689,23 @@ export type Stage =
 "backing_up" | 
 /**  写入项目文件夹 */
 "writing";
+
+export type StorageReport = {
+	usage: StorageUsage,
+	versions: VersionUsage[],
+	backups: BackupUsage[],
+	schemes: SchemeUsage[],
+};
+
+export type StorageUsage = {
+	version_bytes: number,
+	backup_bytes: number,
+	/**  数据库与日志（全部项目共用）。 */
+	metadata_bytes: number,
+	cache_bytes: number,
+	pending_gc_bytes: number,
+	total_bytes: number,
+};
 
 /**  切换前检查（SRS 3.3.4.2 第 1～3 步）。 */
 export type SwitchCheck = {
@@ -708,6 +787,18 @@ export type VersionBrief = {
 	name: string,
 	note: string,
 	created_at: number,
+};
+
+export type VersionUsage = {
+	version: VersionBrief,
+	scheme_name: string | null,
+	cleared: boolean,
+	/**  清单中全部文件的大小之和。 */
+	total_bytes: number,
+	/**  预计可释放：只被这个版本引用的内容。 */
+	exclusive_bytes: number,
+	/**  不能清理的原因；null 表示可以清理。 */
+	protected: string | null,
 };
 
 export type WorkspaceOpRequest = {

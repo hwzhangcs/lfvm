@@ -151,6 +151,7 @@ impl Core {
 
     /// 比较某个文件在两个版本中的内容。
     pub fn diff_file(&self, project_id: &str, a: &str, b: &str, path: &str) -> CoreResult<FileDiff> {
+        let _leases = (self.lease(a), self.lease(b));
         let (fa, fb) = {
             let db = self.db();
             let project = load_project(&db, project_id)?;

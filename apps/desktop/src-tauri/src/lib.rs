@@ -83,6 +83,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::search_files,
             commands::ensure_thumbnail,
             commands::file_trail,
+            commands::suggest_output_name,
+            commands::output_version,
+            commands::reveal_output,
+            commands::storage_report,
+            commands::clear_storage,
         ])
         .events(collect_events![FolderDropped])
 }

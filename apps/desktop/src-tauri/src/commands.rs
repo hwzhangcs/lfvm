@@ -15,7 +15,9 @@ use lfvm_core::history::{HistoryEntry, TimeMap};
 use lfvm_core::ops::restore::{ImpactPlan, WorkspaceOpRequest};
 use lfvm_core::ops::single::{FileRestoreCheck, FileRestoreRequest, FileTarget};
 use lfvm_core::ops::{OperationDetail, OperationResult, OperationSummary};
+use lfvm_core::output::{OutputKind, OutputResult, OutputSource, OutputTarget};
 use lfvm_core::search::{SearchPage, SearchQuery};
+use lfvm_core::storage::{ClearRequest, ClearResult, StorageReport};
 use lfvm_core::trail::Trail;
 use lfvm_core::scheme::{SchemeInfo, SchemeList, SwitchCheck, SwitchRequest, SwitchTarget};
 use lfvm_core::project::{AddCheck, DirChild, ProjectOverview, ProjectSummary, RuleView};
@@ -512,4 +514,63 @@ pub async fn file_trail(
     route: SwitchTarget,
 ) -> Result<Trail, CoreError> {
     blocking(&state, move |core| core.file_trail(&project_id, &path, &route)).await
+}
+
+// ───────────────────────── 展开、导出、存储 ─────────────────────────
+
+#[tauri::command]
+#[specta::specta]
+pub async fn suggest_output_name(state: State<'_, AppState>, project_id: String, source: OutputSource) -> Result<String, CoreError> {
+    blocking(&state, move |core| core.suggest_output_name(&project_id, &source)).await
+}
+
+/// 展开或导出。`location_token` 来自 pick_folder；输出到该位置下名为 `folder_name` 的新文件夹。
+#[tauri::command]
+#[specta::specta]
+#[allow(clippy::too_many_arguments)]
+pub async fn output_version(
+    state: State<'_, AppState>,
+    project_id: String,
+    request_id: String,
+    kind: OutputKind,
+    source: OutputSource,
+    location_token: String,
+    folder_name: String,
+    task_id: String,
+    on_progress: Channel<ProgressEvent>,
+) -> Result<OutputResult, CoreError> {
+    let parent = picked_path(&state, &location_token)?;
+    let task = state.tasks.start(&task_id);
+    let progress = ChannelProgress::new(on_progress, task.flag.clone());
+    blocking(&state, move |core| {
+        core.output_version(&project_id, &request_id, kind, &source, &OutputTarget { parent, folder_name }, &progress)
+    })
+    .await
+}
+
+/// 在系统文件管理器中打开展开或导出的文件夹。
+#[tauri::command]
+#[specta::specta]
+pub async fn reveal_output(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    project_id: String,
+    operation_id: String,
+) -> Result<(), CoreError> {
+    let path = blocking(&state, move |core| core.output_path(&project_id, &operation_id)).await?;
+    app.opener()
+        .open_path(path.to_string_lossy(), None::<&str>)
+        .map_err(|e| CoreError::new(ErrorCode::Io, format!("无法打开文件夹（{e}）")))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn storage_report(state: State<'_, AppState>, project_id: String) -> Result<StorageReport, CoreError> {
+    blocking(&state, move |core| core.storage_report(&project_id)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn clear_storage(state: State<'_, AppState>, project_id: String, request: ClearRequest) -> Result<ClearResult, CoreError> {
+    blocking(&state, move |core| core.clear_storage(&project_id, &request)).await
 }
