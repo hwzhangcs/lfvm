@@ -3,6 +3,7 @@ import {
   BranchesOutlined,
   CompressOutlined,
   DiffOutlined,
+  ExportOutlined,
   FolderOpenOutlined,
   RollbackOutlined,
   SearchOutlined,
@@ -28,6 +29,7 @@ import type { Dayjs } from "dayjs";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { api, errorMessage, inDesktop, type MapNode, queryKeys, type TimeMap } from "../api";
 import { ImpactDialog } from "../components/ImpactDialog";
+import { OutputDialog, type OutputTarget } from "../features/output/OutputDialog";
 import { CreateSchemeModal, SwitchFlow } from "../features/schemes/SchemeDialogs";
 import {
   COL,
@@ -66,6 +68,7 @@ export function TimeMapPage() {
   const [keyword, setKeyword] = useState("");
   const [cursor, setCursor] = useState(0);
   const [restoring, setRestoring] = useState<MapNode | null>(null);
+  const [output, setOutput] = useState<OutputTarget | null>(null);
   const [branching, setBranching] = useState<MapNode | null>(null);
   const [switching, setSwitching] = useState<{ id: string; label: string } | null>(null);
 
@@ -208,6 +211,14 @@ export function TimeMapPage() {
               onSetB={() => setPair((p) => ({ ...p, b: node.version_id }))}
               onRestore={() => setRestoring(node)}
               onBranch={() => setBranching(node)}
+              onOutput={(kind) =>
+                setOutput({
+                  mode: "single",
+                  kind,
+                  source: { kind: "version", version_id: node.version_id },
+                  label: versionLabel(node.seq),
+                })
+              }
             />
           ) : (
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -235,6 +246,7 @@ export function TimeMapPage() {
           </Flex>
         </Card>
       </Flex>
+      <OutputDialog projectId={projectId} target={output} onClose={() => setOutput(null)} />
       <CreateSchemeModal
         open={!!branching}
         projectId={projectId}
@@ -276,6 +288,7 @@ function NodeDetails({
   onSetB,
   onRestore,
   onBranch,
+  onOutput,
 }: {
   map: TimeMap;
   node: MapNode;
@@ -284,6 +297,7 @@ function NodeDetails({
   onSetB: () => void;
   onRestore: () => void;
   onBranch: () => void;
+  onOutput: (kind: "expand" | "export") => void;
 }) {
   const route = node.origin_scheme_name
     ? `${t.map.filterScheme(node.origin_scheme_name)}${map.schemes.find((s) => s.scheme_id === node.origin_scheme_id)?.cleared ? t.map.clearedScheme : ""}`
@@ -313,6 +327,24 @@ function NodeDetails({
         <Button icon={<RollbackOutlined />} disabled={node.cleared} onClick={onRestore}>
           {t.restoreVersion.button}
         </Button>
+        <Space.Compact block>
+          <Button
+            style={{ width: "50%" }}
+            icon={<FolderOpenOutlined />}
+            disabled={node.cleared}
+            onClick={() => onOutput("expand")}
+          >
+            {t.output.expand}
+          </Button>
+          <Button
+            style={{ width: "50%" }}
+            icon={<ExportOutlined />}
+            disabled={node.cleared}
+            onClick={() => onOutput("export")}
+          >
+            {t.output.export}
+          </Button>
+        </Space.Compact>
         <Space.Compact block>
           <Button style={{ width: "50%" }} disabled={node.cleared} onClick={onSetA}>
             {t.node.setA}

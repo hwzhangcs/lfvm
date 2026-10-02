@@ -10,9 +10,12 @@ export type {
   AddCheck,
   AppInfo,
   BackupSummary,
+  BackupUsage,
   ChangeItem,
   ChangeKind,
   ChangeSet,
+  ClearItem,
+  ClearResult,
   CompareItem,
   CompareKind,
   CompareResult,
@@ -36,6 +39,9 @@ export type {
   OperationSummary,
   OpStatus,
   OpType,
+  OutputKind,
+  OutputResult,
+  OutputSource,
   PickedFolder,
   PlanItem,
   PreviewContent,
@@ -47,11 +53,14 @@ export type {
   SaveResult,
   SchemeInfo,
   SchemeList,
+  SchemeUsage,
   SearchHit,
   SearchPage,
   SearchQuery,
   SourceRef,
   Stage,
+  StorageReport,
+  StorageUsage,
   SwitchCheck,
   SwitchTarget,
   TimeMap,
@@ -59,6 +68,7 @@ export type {
   TrailEntry,
   TrailState,
   VersionBrief,
+  VersionUsage,
 } from "../bindings";
 
 /** 是否运行在桌面程序中（否则是在浏览器里预览界面）。 */
@@ -88,6 +98,7 @@ export const queryKeys = {
   search: (projectId: string, q: unknown) => ["search", projectId, q] as const,
   thumb: (projectId: string, hash: string) => ["thumb", projectId, hash] as const,
   trail: (projectId: string, path: string, route: unknown) => ["trail", projectId, path, route] as const,
+  storage: (projectId: string) => ["storage", projectId] as const,
 };
 
 /** 改写工作区或历史的操作完成后，刷新该项目的全部相关数据。 */

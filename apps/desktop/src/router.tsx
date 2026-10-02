@@ -6,12 +6,12 @@ import { createHashHistory, createRootRoute, createRoute, createRouter, Outlet }
 import { ProjectLayout } from "./layouts/ProjectLayout";
 import { BackupsPage } from "./pages/BackupsPage";
 import { ComparePage } from "./pages/ComparePage";
-import { FeaturePlaceholder } from "./pages/FeaturePlaceholder";
 import { FileTreePage } from "./pages/FileTreePage";
 import { FindPage } from "./pages/FindPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { ProjectListPage } from "./pages/ProjectListPage";
 import { SchemesPage } from "./pages/SchemesPage";
+import { StoragePage } from "./pages/StoragePage";
 import { TimeMapPage } from "./pages/TimeMapPage";
 
 const rootRoute = createRootRoute({ component: Outlet });
@@ -74,7 +74,7 @@ const backupsRoute = createRoute({
 const storageRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: "storage",
-  component: () => <FeaturePlaceholder page="storage" />,
+  component: StoragePage,
 });
 
 const routeTree = rootRoute.addChildren([

@@ -1,9 +1,18 @@
-import { BranchesOutlined, EditOutlined, PlusOutlined, SwapOutlined } from "@ant-design/icons";
+import {
+  BranchesOutlined,
+  ColumnWidthOutlined,
+  EditOutlined,
+  ExportOutlined,
+  FolderOpenOutlined,
+  PlusOutlined,
+  SwapOutlined,
+} from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
 import { Alert, Button, Card, Flex, Space, Table, type TableColumnsType, Tag, Typography } from "antd";
 import { useState } from "react";
 import { api, errorMessage, inDesktop, queryKeys, type SchemeInfo, type SwitchTarget } from "../api";
+import { OutputDialog, type OutputTarget } from "../features/output/OutputDialog";
 import { CreateSchemeModal, RenameSchemeModal, SwitchFlow } from "../features/schemes/SchemeDialogs";
 import { laneColor } from "../features/timemap/layout";
 import { t } from "../locales/zh-CN";
@@ -36,6 +45,7 @@ export function SchemesPage() {
   });
   const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState<SchemeInfo | null>(null);
+  const [output, setOutput] = useState<OutputTarget | null>(null);
   const [switching, setSwitching] = useState<{ target: SwitchTarget; label: string } | null>(null);
 
   const l = list.data;
@@ -95,7 +105,7 @@ export function SchemesPage() {
     {
       title: "",
       key: "actions",
-      width: 200,
+      width: 420,
       align: "right",
       render: (_, r) => (
         <Space size={0}>
@@ -117,6 +127,40 @@ export function SchemesPage() {
               {t.schemes.rename}
             </Button>
           )}
+          {r.scheme && (
+            <>
+              <Button
+                type="link"
+                icon={<FolderOpenOutlined />}
+                onClick={() =>
+                  r.scheme &&
+                  setOutput({
+                    mode: "single",
+                    kind: "expand",
+                    source: { kind: "scheme", scheme_id: r.scheme.scheme_id },
+                    label: t.map.filterScheme(r.name),
+                  })
+                }
+              >
+                {t.output.expand}
+              </Button>
+              <Button
+                type="link"
+                icon={<ExportOutlined />}
+                onClick={() =>
+                  r.scheme &&
+                  setOutput({
+                    mode: "single",
+                    kind: "export",
+                    source: { kind: "scheme", scheme_id: r.scheme.scheme_id },
+                    label: t.map.filterScheme(r.name),
+                  })
+                }
+              >
+                {t.output.export}
+              </Button>
+            </>
+          )}
         </Space>
       ),
     },
@@ -126,14 +170,23 @@ export function SchemesPage() {
     <Card
       title={t.schemes.title}
       extra={
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          disabled={!l?.default_head && !l?.schemes.length}
-          onClick={() => setCreating(true)}
-        >
-          {t.schemes.create}
-        </Button>
+        <Space>
+          <Button
+            icon={<ColumnWidthOutlined />}
+            disabled={(l?.schemes.length ?? 0) < 2}
+            onClick={() => setOutput({ mode: "dual" })}
+          >
+            {t.output.dualTitle}
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            disabled={!l?.default_head && !l?.schemes.length}
+            onClick={() => setCreating(true)}
+          >
+            {t.schemes.create}
+          </Button>
+        </Space>
       }
     >
       <Flex vertical gap={12}>
@@ -160,6 +213,8 @@ export function SchemesPage() {
           setSwitching({ target: { kind: "scheme", scheme_id: s.scheme_id }, label: t.map.filterScheme(s.name) })
         }
       />
+      <OutputDialog projectId={projectId} target={output} onClose={() => setOutput(null)} />
+      <OutputDialog projectId={projectId} target={output} onClose={() => setOutput(null)} />
       <RenameSchemeModal scheme={renaming} projectId={projectId} onClose={() => setRenaming(null)} />
       <SwitchFlow
         projectId={projectId}
