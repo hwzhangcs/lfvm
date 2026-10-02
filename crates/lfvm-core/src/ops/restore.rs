@@ -6,6 +6,7 @@
 use rusqlite::{OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 
+use crate::Core;
 use crate::changes::load_manifest;
 use crate::content::{SourceRef, check_source};
 use crate::error::{CoreError, CoreResult, ErrorCode};
@@ -21,7 +22,6 @@ use crate::progress::Progress;
 use crate::project::{ProjectRow, VersionBrief, load_project, version_brief};
 use crate::scan::{self, ScanProblem};
 use crate::store::ObjectStore;
-use crate::Core;
 
 #[derive(Debug, Clone, Default, Serialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -126,7 +126,12 @@ impl Core {
             let db = self.db();
             let project = load_project(&db, project_id)?;
             check_source(&db, project_id, &SourceRef::Version { version_id: version_id.to_owned() })?;
-            (project, exclude::load_rules(&db, project_id)?, scan::load_cache(&db, project_id)?, load_manifest(&db, version_id)?)
+            (
+                project,
+                exclude::load_rules(&db, project_id)?,
+                scan::load_cache(&db, project_id)?,
+                load_manifest(&db, version_id)?,
+            )
         };
         if !project.root.is_dir() {
             return Err(CoreError::new(ErrorCode::NotFound, "项目文件夹无法访问").with_path(&project.root));
@@ -190,7 +195,10 @@ impl Core {
         let on_commit: Option<OnCommit<'_>> = match (op_type, scheme) {
             (OpType::Switch, Some(s)) => Some(Box::new(move |tx: &Transaction<'_>| {
                 let active = if s == "default" { None } else { Some(s) };
-                tx.execute("UPDATE projects SET active_scheme_id = ?2 WHERE project_id = ?1", params![project_id, active])?;
+                tx.execute(
+                    "UPDATE projects SET active_scheme_id = ?2 WHERE project_id = ?1",
+                    params![project_id, active],
+                )?;
                 Ok(())
             })),
             _ => None,
@@ -200,7 +208,14 @@ impl Core {
                 project_id,
                 request_id,
                 op_type,
-                reason: format!("重试：{}", if op_type == OpType::Switch { format!("切换到{}前", target.label) } else { format!("恢复到{}前", target.label) }),
+                reason: format!(
+                    "重试：{}",
+                    if op_type == OpType::Switch {
+                        format!("切换到{}前", target.label)
+                    } else {
+                        format!("恢复到{}前", target.label)
+                    }
+                ),
                 target,
                 version_id: &version,
                 fingerprint,
@@ -319,12 +334,19 @@ impl Core {
                 let db = self.db();
                 if !touched {
                     let status = if error.is_none() { OpStatus::Cancelled } else { OpStatus::Failed };
-                    let msg = error.map_or("已取消，项目文件夹没有被改动".to_owned(), |e| format!("{}（项目文件夹没有被改动）", e.message));
+                    let msg = error.map_or("已取消，项目文件夹没有被改动".to_owned(), |e| {
+                        format!("{}（项目文件夹没有被改动）", e.message)
+                    });
                     finish_op(&db, &op_id, status, &msg)?;
                 } else {
                     let msg = match error {
-                        Some(e) => format!("写入中途出错，已停止：{}。项目文件夹处于新旧混合状态，可以从安全备份找回文件，或处理后重试", e.message),
-                        None => "已按要求停止，项目文件夹处于新旧混合状态，可以从安全备份找回文件，或稍后重试".to_owned(),
+                        Some(e) => format!(
+                            "写入中途出错，已停止：{}。项目文件夹处于新旧混合状态，可以从安全备份找回文件，或处理后重试",
+                            e.message
+                        ),
+                        None => {
+                            "已按要求停止，项目文件夹处于新旧混合状态，可以从安全备份找回文件，或稍后重试".to_owned()
+                        }
                     };
                     finish_op(&db, &op_id, OpStatus::Incomplete, &msg)?;
                     mark_incomplete(&db, op.project_id)?;

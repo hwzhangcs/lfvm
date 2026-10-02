@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::content::{SourceRef, check_source};
 use crate::error::{CoreError, CoreResult, ErrorCode};
-use crate::ops::OperationResult;
 use crate::ops::OpType;
+use crate::ops::OperationResult;
 use crate::ops::restore::{ImpactPlan, OnCommit, TargetRef, WorkspaceOp};
 use crate::progress::Progress;
 use crate::project::{VersionBrief, load_project, version_brief};
@@ -206,9 +206,8 @@ impl Core {
                 if project.active_scheme_id.is_none() {
                     return Err(CoreError::new(ErrorCode::InvalidInput, "已经在默认历史中，无需切换"));
                 }
-                let head = project
-                    .default_head
-                    .ok_or_else(|| CoreError::new(ErrorCode::NotFound, "默认历史中还没有版本"))?;
+                let head =
+                    project.default_head.ok_or_else(|| CoreError::new(ErrorCode::NotFound, "默认历史中还没有版本"))?;
                 ("默认历史".to_owned(), head)
             }
         };
@@ -218,7 +217,12 @@ impl Core {
     }
 
     /// 切换前检查：有未保存的变化时只提示保存或取消；否则给出影响清单。
-    pub fn check_switch(&self, project_id: &str, target: &SwitchTarget, progress: &dyn Progress) -> CoreResult<SwitchCheck> {
+    pub fn check_switch(
+        &self,
+        project_id: &str,
+        target: &SwitchTarget,
+        progress: &dyn Progress,
+    ) -> CoreResult<SwitchCheck> {
         let (label, version) = self.switch_target(project_id, target)?;
         let changes = self.current_changes(project_id, progress)?;
         if changes.has_changes {
@@ -294,7 +298,12 @@ mod tests {
         fn save(&self) -> String {
             self.core
                 .save_version(
-                    &SaveRequest { project_id: self.pid.clone(), request_id: new_id(), name: String::new(), note: String::new() },
+                    &SaveRequest {
+                        project_id: self.pid.clone(),
+                        request_id: new_id(),
+                        name: String::new(),
+                        note: String::new(),
+                    },
                     &NoProgress,
                 )
                 .unwrap()
@@ -362,8 +371,17 @@ mod tests {
         // 有未保存的修改
         std::fs::write(e.work.join("a.txt"), "dirty").unwrap();
         assert!(e.core.check_switch(&e.pid, &target, &NoProgress).unwrap().unsaved);
-        let err = e.core
-            .switch_scheme(&SwitchRequest { project_id: e.pid.clone(), request_id: new_id(), target: target.clone(), fingerprint: String::new() }, &NoProgress)
+        let err = e
+            .core
+            .switch_scheme(
+                &SwitchRequest {
+                    project_id: e.pid.clone(),
+                    request_id: new_id(),
+                    target: target.clone(),
+                    fingerprint: String::new(),
+                },
+                &NoProgress,
+            )
             .unwrap_err();
         assert_eq!(err.code, ErrorCode::UnsavedChanges);
         // 保存并继续：变化保存到当前路线（默认历史）
@@ -383,7 +401,9 @@ mod tests {
         let list = e.core.list_schemes(&e.pid).unwrap();
         assert_eq!(list.schemes[0].head.version_id, v4);
         assert_eq!(list.default_head.unwrap().version_id, v3);
-        let parent: String = e.core.db()
+        let parent: String = e
+            .core
+            .db()
             .query_row("SELECT parent_version_id FROM versions WHERE version_id = ?1", [&v4], |r| r.get(0))
             .unwrap();
         assert_eq!(parent, v1);
@@ -394,7 +414,10 @@ mod tests {
         assert_eq!(r.status, OpStatus::Succeeded);
         assert_eq!(e.read("a.txt"), "dirty");
         assert!(e.core.list_schemes(&e.pid).unwrap().default_active);
-        assert_eq!(e.core.check_switch(&e.pid, &SwitchTarget::Default, &NoProgress).unwrap_err().code, ErrorCode::InvalidInput);
+        assert_eq!(
+            e.core.check_switch(&e.pid, &SwitchTarget::Default, &NoProgress).unwrap_err().code,
+            ErrorCode::InvalidInput
+        );
     }
 
     /// 写入中途失败：活动方案保持原值，操作记为“未完成”；重试成功后才更新活动方案。

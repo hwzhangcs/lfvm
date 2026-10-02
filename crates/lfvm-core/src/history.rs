@@ -3,12 +3,12 @@
 use rusqlite::params;
 use serde::Serialize;
 
+use crate::Core;
 use crate::content::{SourceRef, check_source};
 use crate::error::CoreResult;
 use crate::model::EntryType;
 use crate::project::load_project;
 use crate::store::ObjectStore;
-use crate::Core;
 
 /// 时间地图中的一个版本节点。
 #[derive(Debug, Clone, Serialize)]
@@ -56,6 +56,8 @@ pub struct TimeMap {
     pub schemes: Vec<MapScheme>,
     pub default_head: Option<String>,
     pub active_scheme_id: Option<String>,
+    /// 版本数超出已测试范围（数据集 D4：500 个版本节点，LFVM-P-13）。
+    pub over_scale: bool,
 }
 
 /// 历史版本中的一个文件或文件夹。
@@ -117,7 +119,13 @@ impl Core {
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(TimeMap { nodes, schemes, default_head: project.default_head, active_scheme_id: project.active_scheme_id })
+        Ok(TimeMap {
+            over_scale: nodes.len() > 500,
+            nodes,
+            schemes,
+            default_head: project.default_head,
+            active_scheme_id: project.active_scheme_id,
+        })
     }
 
     /// 版本保存时的完整文件/目录清单（含空目录和零字节文件），按路径排序。

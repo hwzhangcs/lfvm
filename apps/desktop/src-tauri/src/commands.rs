@@ -16,11 +16,11 @@ use lfvm_core::ops::restore::{ImpactPlan, WorkspaceOpRequest};
 use lfvm_core::ops::single::{FileRestoreCheck, FileRestoreRequest, FileTarget};
 use lfvm_core::ops::{OperationDetail, OperationResult, OperationSummary};
 use lfvm_core::output::{OutputKind, OutputResult, OutputSource, OutputTarget};
+use lfvm_core::project::{AddCheck, DirChild, ProjectOverview, ProjectSummary, RuleView};
+use lfvm_core::scheme::{SchemeInfo, SchemeList, SwitchCheck, SwitchRequest, SwitchTarget};
 use lfvm_core::search::{SearchPage, SearchQuery};
 use lfvm_core::storage::{ClearRequest, ClearResult, StorageReport};
 use lfvm_core::trail::Trail;
-use lfvm_core::scheme::{SchemeInfo, SchemeList, SwitchCheck, SwitchRequest, SwitchTarget};
-use lfvm_core::project::{AddCheck, DirChild, ProjectOverview, ProjectSummary, RuleView};
 use lfvm_core::version::{SaveRequest, SaveResult};
 use lfvm_core::{Core, CoreError, CoreResult, ErrorCode};
 use serde::{Deserialize, Serialize};
@@ -38,9 +38,17 @@ where
     F: FnOnce(&Core) -> CoreResult<T> + Send + 'static,
 {
     let core: Arc<Core> = state.core.clone();
-    tauri::async_runtime::spawn_blocking(move || f(&core))
+    let result = tauri::async_runtime::spawn_blocking(move || f(&core))
         .await
-        .map_err(|e| CoreError::new(ErrorCode::Internal, format!("后台任务异常结束（{e}）")))?
+        .map_err(|e| CoreError::new(ErrorCode::Internal, format!("后台任务异常结束（{e}）")))
+        .and_then(|r| r);
+    // 用户取消、需要确认等属于正常交互，不记入错误日志
+    if let Err(e) = &result
+        && !matches!(e.code, ErrorCode::Cancelled | ErrorCode::NeedsConfirmation | ErrorCode::NothingToSave)
+    {
+        state.core.log_error(std::any::type_name::<F>(), e);
+    }
+    result
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -74,9 +82,13 @@ pub struct PickedFolder {
 }
 
 fn picked_path(state: &AppState, token: &str) -> CoreResult<PathBuf> {
-    state.picked.lock().unwrap_or_else(|e| e.into_inner()).get(token).cloned().ok_or_else(|| {
-        CoreError::new(ErrorCode::InvalidInput, "所选文件夹已失效，请重新选择")
-    })
+    state
+        .picked
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(token)
+        .cloned()
+        .ok_or_else(|| CoreError::new(ErrorCode::InvalidInput, "所选文件夹已失效，请重新选择"))
 }
 
 #[tauri::command]
@@ -109,11 +121,10 @@ pub async fn pick_folder(
         FolderPurpose::ExpandTo => "选择展开到的位置",
         FolderPurpose::ExportTo => "选择导出位置",
     };
-    let picked = tauri::async_runtime::spawn_blocking(move || {
-        app.dialog().file().set_title(title).blocking_pick_folder()
-    })
-    .await
-    .map_err(|e| CoreError::new(ErrorCode::Internal, e.to_string()))?;
+    let picked =
+        tauri::async_runtime::spawn_blocking(move || app.dialog().file().set_title(title).blocking_pick_folder())
+            .await
+            .map_err(|e| CoreError::new(ErrorCode::Internal, e.to_string()))?;
     let Some(fp) = picked else { return Ok(None) };
     let path = fp.into_path().map_err(|e| CoreError::new(ErrorCode::InvalidPath, e.to_string()))?;
     Ok(Some(state.remember_folder(path)))
@@ -407,13 +418,20 @@ pub async fn retry_operation(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn resolve_incomplete(state: State<'_, AppState>, project_id: String, operation_id: String) -> Result<(), CoreError> {
+pub async fn resolve_incomplete(
+    state: State<'_, AppState>,
+    project_id: String,
+    operation_id: String,
+) -> Result<(), CoreError> {
     blocking(&state, move |core| core.resolve_incomplete(&project_id, &operation_id)).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn list_operations(state: State<'_, AppState>, project_id: String) -> Result<Vec<OperationSummary>, CoreError> {
+pub async fn list_operations(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<Vec<OperationSummary>, CoreError> {
     blocking(&state, move |core| core.list_operations(&project_id)).await
 }
 
@@ -429,7 +447,10 @@ pub async fn operation_detail(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn open_incomplete(state: State<'_, AppState>, project_id: String) -> Result<Option<OperationSummary>, CoreError> {
+pub async fn open_incomplete(
+    state: State<'_, AppState>,
+    project_id: String,
+) -> Result<Option<OperationSummary>, CoreError> {
     blocking(&state, move |core| core.open_incomplete(&project_id)).await
 }
 
@@ -494,7 +515,11 @@ pub async fn switch_scheme(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn search_files(state: State<'_, AppState>, project_id: String, query: SearchQuery) -> Result<SearchPage, CoreError> {
+pub async fn search_files(
+    state: State<'_, AppState>,
+    project_id: String,
+    query: SearchQuery,
+) -> Result<SearchPage, CoreError> {
     blocking(&state, move |core| core.search_files(&project_id, &query)).await
 }
 
@@ -520,7 +545,11 @@ pub async fn file_trail(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn suggest_output_name(state: State<'_, AppState>, project_id: String, source: OutputSource) -> Result<String, CoreError> {
+pub async fn suggest_output_name(
+    state: State<'_, AppState>,
+    project_id: String,
+    source: OutputSource,
+) -> Result<String, CoreError> {
     blocking(&state, move |core| core.suggest_output_name(&project_id, &source)).await
 }
 
@@ -571,6 +600,10 @@ pub async fn storage_report(state: State<'_, AppState>, project_id: String) -> R
 
 #[tauri::command]
 #[specta::specta]
-pub async fn clear_storage(state: State<'_, AppState>, project_id: String, request: ClearRequest) -> Result<ClearResult, CoreError> {
+pub async fn clear_storage(
+    state: State<'_, AppState>,
+    project_id: String,
+    request: ClearRequest,
+) -> Result<ClearResult, CoreError> {
     blocking(&state, move |core| core.clear_storage(&project_id, &request)).await
 }

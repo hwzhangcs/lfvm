@@ -25,7 +25,10 @@ use crate::{Core, new_id};
 pub(crate) enum ExecOutcome {
     Completed,
     /// 中途停止。`touched` 表示是否已有文件被改动（决定记为“失败”还是“未完成”）。
-    Stopped { error: Option<CoreError>, touched: bool },
+    Stopped {
+        error: Option<CoreError>,
+        touched: bool,
+    },
 }
 
 impl Core {
@@ -90,7 +93,9 @@ fn apply_item(root: &Path, store: &ObjectStore, it: &PlanItem, safe_dirs: &mut H
             }
             write_object(store, it.after_hash.as_deref(), &abs, None)
         }
-        (Action::Replace, EntryType::File) => write_object(store, it.after_hash.as_deref(), &abs, it.before_hash.as_deref()),
+        (Action::Replace, EntryType::File) => {
+            write_object(store, it.after_hash.as_deref(), &abs, it.before_hash.as_deref())
+        }
         _ => Ok(()),
     }
 }
@@ -105,9 +110,7 @@ pub(crate) fn verify_unchanged(abs: &Path, expected: Option<&str>) -> CoreResult
     match hash_file(abs) {
         Ok((h, _)) if h == expected => Ok(()),
         Ok(_) => Err(changed(abs, "文件在备份后被修改，为避免覆盖新的修改，操作已停止")),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            Err(changed(abs, "文件在备份后被移动或删除，操作已停止"))
-        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Err(changed(abs, "文件在备份后被移动或删除，操作已停止")),
         Err(e) => Err(CoreError::io(e, abs)),
     }
 }
@@ -123,7 +126,9 @@ pub(crate) fn check_no_links(root: &Path, rel: &RelPath, safe: &mut HashSet<Path
         }
         match std::fs::symlink_metadata(&cur) {
             Ok(m) if lfvm_platform::classify(&m) == EntryKind::Link => {
-                return Err(CoreError::new(ErrorCode::LinkNotFollowed, "路径中有快捷链接，系统不会经由它写入").with_path(&cur));
+                return Err(
+                    CoreError::new(ErrorCode::LinkNotFollowed, "路径中有快捷链接，系统不会经由它写入").with_path(&cur)
+                );
             }
             Ok(_) => {
                 safe.insert(cur.clone());
@@ -135,7 +140,12 @@ pub(crate) fn check_no_links(root: &Path, rel: &RelPath, safe: &mut HashSet<Path
 }
 
 /// 把内容对象写到 `dst`：先写同目录临时文件并校验，再确认目标未变化，最后原子替换。
-pub(crate) fn write_object(store: &ObjectStore, hash: Option<&str>, dst: &Path, before: Option<&str>) -> CoreResult<()> {
+pub(crate) fn write_object(
+    store: &ObjectStore,
+    hash: Option<&str>,
+    dst: &Path,
+    before: Option<&str>,
+) -> CoreResult<()> {
     let hash = hash.ok_or_else(|| CoreError::new(ErrorCode::Internal, "缺少目标内容"))?;
     let tmp = prepare_temp(store, hash, dst)?;
     let r = (|| {
@@ -162,7 +172,9 @@ pub(crate) fn prepare_temp(store: &ObjectStore, hash: &str, dst: &Path) -> CoreR
         w.flush().map_err(|e| CoreError::io(e, &tmp))?;
         drop(w);
         if got != hash {
-            return Err(CoreError::new(ErrorCode::ContentCorrupted, "历史内容已损坏（校验不一致），没有写入").with_path(dst));
+            return Err(
+                CoreError::new(ErrorCode::ContentCorrupted, "历史内容已损坏（校验不一致），没有写入").with_path(dst)
+            );
         }
         Ok(())
     })();

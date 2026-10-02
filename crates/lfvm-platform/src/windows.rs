@@ -13,9 +13,7 @@ const FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS: u32 = 0x0040_0000;
 pub fn classify(meta: &Metadata) -> EntryKind {
     let attrs = meta.file_attributes();
     // OneDrive 等的云占位文件同时带有重解析点属性，需先判断。
-    if attrs & (FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS | FILE_ATTRIBUTE_RECALL_ON_OPEN | FILE_ATTRIBUTE_OFFLINE)
-        != 0
-    {
+    if attrs & (FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS | FILE_ATTRIBUTE_RECALL_ON_OPEN | FILE_ATTRIBUTE_OFFLINE) != 0 {
         return EntryKind::CloudPlaceholder;
     }
     if attrs & FILE_ATTRIBUTE_REPARSE_POINT != 0 || meta.file_type().is_symlink() {
@@ -41,14 +39,13 @@ pub fn atomic_replace(tmp: &Path, dst: &Path) -> io::Result<()> {
 }
 
 const RESERVED: [&str; 22] = [
-    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
-    "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2",
+    "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
 
 pub fn validate_component(name: &str) -> Result<(), NameIssue> {
-    if let Some(c) = name
-        .chars()
-        .find(|c| matches!(c, '<' | '>' | ':' | '"' | '\\' | '|' | '?' | '*') || (*c as u32) < 0x20)
+    if let Some(c) =
+        name.chars().find(|c| matches!(c, '<' | '>' | ':' | '"' | '\\' | '|' | '?' | '*') || (*c as u32) < 0x20)
     {
         return Err(NameIssue::ForbiddenChar(c));
     }

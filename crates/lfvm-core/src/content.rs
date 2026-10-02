@@ -7,13 +7,13 @@ use std::io::{Cursor, Read};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
+use crate::Core;
 use crate::error::{CoreError, CoreResult, ErrorCode};
 use crate::hash::hash_bytes;
 use crate::model::EntryType;
 use crate::paths::{RelPath, path_key};
 use crate::project::load_project;
 use crate::store::ObjectStore;
-use crate::Core;
 
 /// 文本比较与预览上限（SRS 3.3.2.2）。
 pub const TEXT_MAX_BYTES: u64 = 10 * 1024 * 1024;
@@ -71,7 +71,9 @@ pub(crate) fn check_source(conn: &Connection, project_id: &str, source: &SourceR
                 None => Err(CoreError::new(ErrorCode::NotFound, "找不到这个安全备份")),
                 Some("ready") => Ok(()),
                 Some("cleared") => Err(CoreError::new(ErrorCode::ContentCleared, "这个安全备份的内容已清理，无法找回")),
-                Some(_) => Err(CoreError::new(ErrorCode::ContentCorrupted, "这个安全备份没有创建成功，不能作为恢复来源")),
+                Some(_) => {
+                    Err(CoreError::new(ErrorCode::ContentCorrupted, "这个安全备份没有创建成功，不能作为恢复来源"))
+                }
             }
         }
     }
@@ -82,12 +84,7 @@ pub(crate) fn cleared_error() -> CoreError {
 }
 
 /// 查找来源中的某个文件。
-pub(crate) fn find_file(
-    conn: &Connection,
-    project_id: &str,
-    source: &SourceRef,
-    path: &str,
-) -> CoreResult<FileRecord> {
+pub(crate) fn find_file(conn: &Connection, project_id: &str, source: &SourceRef, path: &str) -> CoreResult<FileRecord> {
     check_source(conn, project_id, source)?;
     let project = load_project(conn, project_id)?;
     let key = path_key(RelPath::parse(path)?.as_str(), project.policy);
@@ -205,7 +202,10 @@ pub fn decode_text(bytes: &[u8]) -> Result<DecodedText, String> {
     } else if let Some(rest) = bytes.strip_prefix(&[0xFE, 0xFF]) {
         (decode_utf16(rest, u16::from_be_bytes)?, "UTF-16 BE")
     } else {
-        (std::str::from_utf8(bytes).map_err(|_| "不是可识别的文本（可能是二进制文件，或编码不受支持）")?.to_owned(), "UTF-8")
+        (
+            std::str::from_utf8(bytes).map_err(|_| "不是可识别的文本（可能是二进制文件，或编码不受支持）")?.to_owned(),
+            "UTF-8",
+        )
     };
     if text.contains('\0') {
         return Err("含有二进制内容，只显示是否有变化".into());
@@ -224,10 +224,10 @@ pub fn decode_text(bytes: &[u8]) -> Result<DecodedText, String> {
 }
 
 fn decode_utf16(bytes: &[u8], f: fn([u8; 2]) -> u16) -> Result<String, String> {
-    if bytes.len() % 2 != 0 {
+    if !bytes.len().is_multiple_of(2) {
         return Err("文本编码无法识别".into());
     }
-    let units: Vec<u16> = bytes.chunks_exact(2).map(|c| f([c[0], c[1]])).collect();
+    let units: Vec<u16> = bytes.as_chunks::<2>().0.iter().map(|c| f(*c)).collect();
     String::from_utf16(&units).map_err(|_| "文本编码无法识别".into())
 }
 
@@ -237,11 +237,19 @@ fn decode_utf16(bytes: &[u8], f: fn([u8; 2]) -> u16) -> Result<String, String> {
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PreviewContent {
-    Text { text: String, encoding: String },
+    Text {
+        text: String,
+        encoding: String,
+    },
     /// 图片经预览协议加载：`lfvm-preview://localhost/<project_id>/<hash>`
-    Image { hash: String, info: ImageInfo },
+    Image {
+        hash: String,
+        info: ImageInfo,
+    },
     /// 不显示内容，给出原因。
-    Unsupported { reason: String },
+    Unsupported {
+        reason: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -332,9 +340,7 @@ mod tests {
 
     fn png(w: u32, h: u32) -> Vec<u8> {
         let mut out = Vec::new();
-        image::RgbImage::new(w, h)
-            .write_to(&mut Cursor::new(&mut out), image::ImageFormat::Png)
-            .unwrap();
+        image::RgbImage::new(w, h).write_to(&mut Cursor::new(&mut out), image::ImageFormat::Png).unwrap();
         out
     }
 

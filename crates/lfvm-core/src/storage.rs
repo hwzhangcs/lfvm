@@ -143,7 +143,8 @@ impl Core {
     fn load_refs(&self, project_id: &str) -> CoreResult<Refs> {
         let db = self.db();
         let mut sizes = HashMap::new();
-        let mut stmt = db.prepare("SELECT content_hash, byte_size FROM content_objects WHERE project_id = ?1 AND state = 'ready'")?;
+        let mut stmt = db
+            .prepare("SELECT content_hash, byte_size FROM content_objects WHERE project_id = ?1 AND state = 'ready'")?;
         for row in stmt.query_map([project_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))? {
             let (h, s) = row?;
             sizes.insert(h, s);
@@ -174,8 +175,9 @@ impl Core {
         self.retry_pending_gc(project_id)?;
         let refs = self.load_refs(project_id)?;
         let sum = |hs: &HashSet<String>| hs.iter().filter_map(|h| refs.sizes.get(h)).sum::<i64>();
-        let exclusive =
-            |hs: &HashSet<String>| hs.iter().filter(|h| refs.count.get(*h) == Some(&1)).filter_map(|h| refs.sizes.get(h)).sum::<i64>();
+        let exclusive = |hs: &HashSet<String>| {
+            hs.iter().filter(|h| refs.count.get(*h) == Some(&1)).filter_map(|h| refs.sizes.get(h)).sum::<i64>()
+        };
 
         let db = self.db();
         let project = load_project(&db, project_id)?;
@@ -184,8 +186,12 @@ impl Core {
         if let Some(h) = &project.default_head {
             protected.insert(h.clone(), "默认历史的最新版本".into());
         }
-        let mut stmt = db.prepare("SELECT name, base_version_id, head_version_id FROM schemes WHERE project_id = ?1 AND state = 'active'")?;
-        for row in stmt.query_map([project_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)))? {
+        let mut stmt = db.prepare(
+            "SELECT name, base_version_id, head_version_id FROM schemes WHERE project_id = ?1 AND state = 'active'",
+        )?;
+        for row in stmt
+            .query_map([project_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)))?
+        {
             let (name, base, head) = row?;
             protected.entry(head).or_insert(format!("方案“{name}”的最新版本"));
             protected.entry(base).or_insert(format!("方案“{name}”的起点"));
@@ -207,7 +213,13 @@ impl Core {
         let versions = stmt
             .query_map([project_id], |r| {
                 Ok((
-                    VersionBrief { version_id: r.get(0)?, seq: r.get(1)?, name: r.get(2)?, note: r.get(3)?, created_at: r.get(4)? },
+                    VersionBrief {
+                        version_id: r.get(0)?,
+                        seq: r.get(1)?,
+                        name: r.get(2)?,
+                        note: r.get(3)?,
+                        created_at: r.get(4)?,
+                    },
                     r.get::<_, String>(5)? == "cleared",
                     r.get::<_, Option<String>>(6)?,
                 ))
@@ -225,7 +237,14 @@ impl Core {
                 } else {
                     None
                 };
-                VersionUsage { total_bytes: sum(hs), exclusive_bytes: exclusive(hs), protected: reason, version, scheme_name, cleared }
+                VersionUsage {
+                    total_bytes: sum(hs),
+                    exclusive_bytes: exclusive(hs),
+                    protected: reason,
+                    version,
+                    scheme_name,
+                    cleared,
+                }
             })
             .collect();
 
@@ -274,7 +293,9 @@ impl Core {
             })
             .collect();
 
-        let mut stmt = db.prepare("SELECT scheme_id, name FROM schemes WHERE project_id = ?1 AND state = 'active' ORDER BY created_at")?;
+        let mut stmt = db.prepare(
+            "SELECT scheme_id, name FROM schemes WHERE project_id = ?1 AND state = 'active' ORDER BY created_at",
+        )?;
         let schemes = stmt
             .query_map([project_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
             .collect::<Result<Vec<_>, _>>()?
@@ -331,7 +352,10 @@ impl Core {
                     project_id,
                     request_id: &req.request_id,
                     op_type: OpType::Clear,
-                    target_ref: crate::ops::restore::TargetRef { label: "清理历史".into(), scheme: None, path: None }.to_json(),
+                    target_ref: crate::ops::restore::TargetRef {
+                        label: "清理历史".into(), scheme: None, path: None
+                    }
+                    .to_json(),
                     resolved_version_id: None,
                     retry_of: None,
                 },
@@ -358,11 +382,10 @@ impl Core {
                 items.push(ClearItem { label, ok: false, message: why.clone() });
                 continue;
             }
-            let (base, head): (String, String) = tx.query_row(
-                "SELECT base_version_id, head_version_id FROM schemes WHERE scheme_id = ?1",
-                [id],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )?;
+            let (base, head): (String, String) =
+                tx.query_row("SELECT base_version_id, head_version_id FROM schemes WHERE scheme_id = ?1", [id], |r| {
+                    Ok((r.get(0)?, r.get(1)?))
+                })?;
             tx.execute("UPDATE schemes SET state = 'cleared' WHERE scheme_id = ?1", [id])?;
             released.insert(base);
             released.insert(head);
@@ -396,17 +419,23 @@ impl Core {
                 continue;
             }
             if self.is_leased(id) {
-                items.push(ClearItem { label, ok: false, message: "正在被预览、比较、展开或导出".into() });
+                items
+                    .push(ClearItem { label, ok: false, message: "正在被预览、比较、展开或导出".into() });
                 continue;
             }
             touched.extend(self.hashes_of(&tx, "version_files", "version_id", id)?);
             tx.execute("DELETE FROM version_files WHERE version_id = ?1", [id])?;
-            tx.execute("UPDATE versions SET payload_state = 'cleared', cleared_at = ?2 WHERE version_id = ?1", params![id, now])?;
+            tx.execute(
+                "UPDATE versions SET payload_state = 'cleared', cleared_at = ?2 WHERE version_id = ?1",
+                params![id, now],
+            )?;
             items.push(ClearItem { label, ok: true, message: "内容已清理，时间地图中保留占位".into() });
         }
         for id in &req.backups {
             let Some(b) = report.backups.iter().find(|b| &b.backup_id == id) else {
-                items.push(ClearItem { label: "安全备份".into(), ok: false, message: "找不到这个安全备份".into() });
+                items.push(ClearItem {
+                    label: "安全备份".into(), ok: false, message: "找不到这个安全备份".into()
+                });
                 continue;
             };
             let label = format!("安全备份“{}”", b.reason);
@@ -416,7 +445,10 @@ impl Core {
             }
             touched.extend(self.hashes_of(&tx, "backup_files", "backup_id", id)?);
             tx.execute("DELETE FROM backup_files WHERE backup_id = ?1", [id])?;
-            tx.execute("UPDATE safety_backups SET status = 'cleared', cleared_at = ?2 WHERE backup_id = ?1", params![id, now])?;
+            tx.execute(
+                "UPDATE safety_backups SET status = 'cleared', cleared_at = ?2 WHERE backup_id = ?1",
+                params![id, now],
+            )?;
             items.push(ClearItem { label, ok: true, message: "已清理，操作记录保留".into() });
         }
         // 不再被任何版本或备份引用的内容：先在事务中标记为待回收
@@ -457,7 +489,9 @@ impl Core {
     }
 
     fn hashes_of(&self, tx: &rusqlite::Transaction<'_>, table: &str, col: &str, id: &str) -> CoreResult<Vec<String>> {
-        let mut stmt = tx.prepare(&format!("SELECT DISTINCT content_hash FROM {table} WHERE {col} = ?1 AND content_hash IS NOT NULL"))?;
+        let mut stmt = tx.prepare(&format!(
+            "SELECT DISTINCT content_hash FROM {table} WHERE {col} = ?1 AND content_hash IS NOT NULL"
+        ))?;
         let v = stmt.query_map([id], |r| r.get(0))?.collect::<Result<Vec<String>, _>>()?;
         Ok(v)
     }
@@ -478,11 +512,12 @@ impl Core {
             match crate::ops::failpoint::hit("gc").and_then(|_| store.remove(h)) {
                 Ok(n) => {
                     freed += n as i64;
-                    let thumb = self.project_store_dir(project_id).join("thumbs").join(&h[..2]).join(format!("{h}.png"));
-                    if let Ok(m) = std::fs::metadata(&thumb) {
-                        if std::fs::remove_file(&thumb).is_ok() {
-                            freed += m.len() as i64;
-                        }
+                    let thumb =
+                        self.project_store_dir(project_id).join("thumbs").join(&h[..2]).join(format!("{h}.png"));
+                    if let Ok(m) = std::fs::metadata(&thumb)
+                        && std::fs::remove_file(&thumb).is_ok()
+                    {
+                        freed += m.len() as i64;
                     }
                     self.db().execute(
                         "DELETE FROM content_objects WHERE project_id = ?1 AND content_hash = ?2 AND state = 'pending_gc'",
@@ -498,7 +533,8 @@ impl Core {
     fn retry_pending_gc(&self, project_id: &str) -> CoreResult<()> {
         let hashes: Vec<String> = {
             let db = self.db();
-            let mut stmt = db.prepare("SELECT content_hash FROM content_objects WHERE project_id = ?1 AND state = 'pending_gc'")?;
+            let mut stmt =
+                db.prepare("SELECT content_hash FROM content_objects WHERE project_id = ?1 AND state = 'pending_gc'")?;
             stmt.query_map([project_id], |r| r.get(0))?.collect::<Result<_, _>>()?
         };
         if !hashes.is_empty() {
@@ -534,7 +570,15 @@ mod tests {
 
     fn save(e: &Env) -> String {
         e.core
-            .save_version(&SaveRequest { project_id: e.pid.clone(), request_id: crate::new_id(), name: String::new(), note: String::new() }, &NoProgress)
+            .save_version(
+                &SaveRequest {
+                    project_id: e.pid.clone(),
+                    request_id: crate::new_id(),
+                    name: String::new(),
+                    note: String::new(),
+                },
+                &NoProgress,
+            )
             .unwrap()
             .version_id
     }
@@ -569,7 +613,10 @@ mod tests {
         let r2 = report.versions.iter().find(|v| v.version.version_id == v2).unwrap();
         assert!(r2.protected.is_none());
         assert_eq!(r2.exclusive_bytes, 1100);
-        assert!(report.versions.iter().find(|v| v.version.version_id == v3).unwrap().protected.is_some(), "默认历史末端受保护");
+        assert!(
+            report.versions.iter().find(|v| v.version.version_id == v3).unwrap().protected.is_some(),
+            "默认历史末端受保护"
+        );
 
         let r = clear(&e, &[&v2], &[], &[]);
         assert!(r.items[0].ok);
@@ -595,7 +642,16 @@ mod tests {
         save(&e);
         let s = e.core.create_scheme(&e.pid, &v1, "试验").unwrap();
         let rep = e.core.storage_report(&e.pid).unwrap();
-        assert!(rep.versions.iter().find(|v| v.version.version_id == v1).unwrap().protected.as_deref().unwrap().contains("试验"));
+        assert!(
+            rep.versions
+                .iter()
+                .find(|v| v.version.version_id == v1)
+                .unwrap()
+                .protected
+                .as_deref()
+                .unwrap()
+                .contains("试验")
+        );
 
         let r = clear(&e, &[&v1], &[], &[&s.scheme_id]);
         assert!(r.items.iter().all(|i| i.ok), "{:?}", r.items);
@@ -611,7 +667,10 @@ mod tests {
         std::fs::write(e.work.join("b.txt"), "1").unwrap();
         let v1 = save(&e);
         let s = e.core.create_scheme(&e.pid, &v1, "当前").unwrap();
-        let check = e.core.check_switch(&e.pid, &crate::scheme::SwitchTarget::Scheme { scheme_id: s.scheme_id.clone() }, &NoProgress).unwrap();
+        let check = e
+            .core
+            .check_switch(&e.pid, &crate::scheme::SwitchTarget::Scheme { scheme_id: s.scheme_id.clone() }, &NoProgress)
+            .unwrap();
         e.core
             .switch_scheme(
                 &crate::scheme::SwitchRequest {
@@ -632,9 +691,15 @@ mod tests {
         save(&e);
         crate::ops::failpoint::arm("execute_item", 1, ErrorCode::Io);
         let plan = e.core.plan_restore(&e.pid, &v1, &NoProgress).unwrap();
-        let op = e.core
+        let op = e
+            .core
             .restore_version(
-                &crate::ops::restore::WorkspaceOpRequest { project_id: e.pid.clone(), request_id: crate::new_id(), version_id: v1, fingerprint: plan.fingerprint },
+                &crate::ops::restore::WorkspaceOpRequest {
+                    project_id: e.pid.clone(),
+                    request_id: crate::new_id(),
+                    version_id: v1,
+                    fingerprint: plan.fingerprint,
+                },
                 &NoProgress,
             )
             .unwrap();

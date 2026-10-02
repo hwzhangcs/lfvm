@@ -444,6 +444,7 @@ export const zhCN = {
     failed: "失败",
     incomplete: "未完成",
   },
+  overScale: "项目规模超出已测试范围，操作可能较慢",
   errors: {
     unknown: "发生了未知错误",
     openFailed: "无法打开项目",

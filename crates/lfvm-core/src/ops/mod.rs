@@ -340,11 +340,10 @@ pub(crate) fn set_item_state(
 
 /// 根据逐项状态汇总操作结果。
 pub(crate) fn result_of(conn: &Connection, op_id: &str) -> CoreResult<OperationResult> {
-    let (status, message): (String, String) = conn.query_row(
-        "SELECT status, result_message FROM operations WHERE operation_id = ?1",
-        [op_id],
-        |r| Ok((r.get(0)?, r.get(1)?)),
-    )?;
+    let (status, message): (String, String) =
+        conn.query_row("SELECT status, result_message FROM operations WHERE operation_id = ?1", [op_id], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })?;
     let backup_id: Option<String> = conn
         .query_row(
             "SELECT backup_id FROM safety_backups WHERE operation_id = ?1 AND status IN ('ready', 'cleared')",
@@ -400,7 +399,8 @@ pub(crate) fn refresh_workspace_state(conn: &Connection, project_id: &str) -> Co
     Ok(())
 }
 
-const SUMMARY_SQL: &str = "SELECT o.operation_id, o.type, o.status, o.target_ref, o.resolved_version_id, o.retry_of, o.resolution,
+const SUMMARY_SQL: &str =
+    "SELECT o.operation_id, o.type, o.status, o.target_ref, o.resolved_version_id, o.retry_of, o.resolution,
             o.created_at, o.finished_at, o.result_message,
             b.backup_id, b.reason, b.status, b.expected_file_count, b.created_at, b.external_root
        FROM operations o LEFT JOIN safety_backups b ON b.operation_id = o.operation_id";
@@ -584,7 +584,13 @@ impl Core {
 }
 
 /// 核对一个“正在写入”的项在磁盘上的实际状态：已是目标状态为完成，仍是原状态为未处理，否则无法确定。
-fn reconcile(path: &std::path::Path, action: &str, entry_type: &str, before: Option<&str>, after: Option<&str>) -> ItemState {
+fn reconcile(
+    path: &std::path::Path,
+    action: &str,
+    entry_type: &str,
+    before: Option<&str>,
+    after: Option<&str>,
+) -> ItemState {
     let meta = std::fs::symlink_metadata(path).ok();
     match (action, entry_type, meta) {
         ("delete", _, None) => ItemState::Done,

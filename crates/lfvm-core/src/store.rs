@@ -64,11 +64,8 @@ impl ObjectStore {
             if let Some(exp) = expected
                 && exp != hash
             {
-                return Err(CoreError::new(
-                    ErrorCode::ChangedExternally,
-                    "文件在保存过程中发生变化，请重新查看后保存",
-                )
-                .with_path(src));
+                return Err(CoreError::new(ErrorCode::ChangedExternally, "文件在保存过程中发生变化，请重新查看后保存")
+                    .with_path(src));
             }
             let dst = self.object_path(&hash)?;
             if dst.is_file() {

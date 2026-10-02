@@ -53,13 +53,34 @@ pub fn protected_dirs() -> Vec<PathBuf> {
     // macOS 的用户临时目录位于 /private/var/folders，因此不能整体保护 /var 或 /private。
     let dirs: &[&str] = if cfg!(target_os = "macos") {
         &[
-            "/System", "/Library", "/Applications", "/bin", "/sbin", "/usr", "/dev",
-            "/private/etc", "/private/var/db", "/cores",
+            "/System",
+            "/Library",
+            "/Applications",
+            "/bin",
+            "/sbin",
+            "/usr",
+            "/dev",
+            "/private/etc",
+            "/private/var/db",
+            "/cores",
         ]
     } else {
         &[
-            "/bin", "/boot", "/dev", "/etc", "/lib", "/lib64", "/proc", "/root", "/run", "/sbin",
-            "/sys", "/usr", "/var/lib", "/var/log", "/var/cache",
+            "/bin",
+            "/boot",
+            "/dev",
+            "/etc",
+            "/lib",
+            "/lib64",
+            "/proc",
+            "/root",
+            "/run",
+            "/sbin",
+            "/sys",
+            "/usr",
+            "/var/lib",
+            "/var/log",
+            "/var/cache",
         ]
     };
     dirs.iter().map(PathBuf::from).collect()

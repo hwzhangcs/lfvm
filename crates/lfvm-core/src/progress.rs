@@ -35,11 +35,7 @@ pub trait Progress: Sync {
 
     /// 已请求取消时返回 `Cancelled` 错误，供长循环中调用。
     fn check(&self) -> CoreResult<()> {
-        if self.is_cancelled() {
-            Err(CoreError::new(ErrorCode::Cancelled, "操作已取消"))
-        } else {
-            Ok(())
-        }
+        if self.is_cancelled() { Err(CoreError::new(ErrorCode::Cancelled, "操作已取消")) } else { Ok(()) }
     }
 }
 

@@ -50,7 +50,8 @@ impl Drop for Permit {
 pub fn make_thumbnail(bytes: &[u8]) -> Result<Vec<u8>, String> {
     probe_image(bytes)?;
     let _permit = Permit::acquire();
-    let mut reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format().map_err(|_| "图片无法读取".to_string())?;
+    let mut reader =
+        ImageReader::new(Cursor::new(bytes)).with_guessed_format().map_err(|_| "图片无法读取".to_string())?;
     let mut limits = Limits::default();
     limits.max_image_width = Some(IMAGE_MAX_SIDE);
     limits.max_image_height = Some(IMAGE_MAX_SIDE);
@@ -91,7 +92,11 @@ impl Core {
         }
         let store = ObjectStore::new(&self.project_store_dir(project_id));
         let bytes = read_object(&store, hash, IMAGE_MAX_BYTES).map_err(|e| {
-            if e.code == ErrorCode::InvalidInput { CoreError::new(e.code, "图片超过 20 MB，不生成缩略图") } else { e }
+            if e.code == ErrorCode::InvalidInput {
+                CoreError::new(e.code, "图片超过 20 MB，不生成缩略图")
+            } else {
+                e
+            }
         })?;
         let png = make_thumbnail(&bytes).map_err(|r| CoreError::new(ErrorCode::InvalidInput, r))?;
         let dir = path.parent().expect("缩略图路径总有上级目录");

@@ -9,12 +9,12 @@
 use rusqlite::{ToSql, params_from_iter};
 use serde::{Deserialize, Serialize};
 
+use crate::Core;
 use crate::content::SourceRef;
 use crate::error::{CoreError, CoreResult, ErrorCode};
 use crate::glob::has_wildcard;
 use crate::project::load_project;
 use crate::scheme::SwitchTarget;
-use crate::Core;
 
 pub const PAGE_SIZE: u32 = 50;
 
@@ -191,8 +191,8 @@ impl Core {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::version::SaveRequest;
     use crate::progress::NoProgress;
+    use crate::version::SaveRequest;
 
     fn setup() -> (tempfile::TempDir, Core, String, std::path::PathBuf) {
         let tmp = tempfile::tempdir().unwrap();
@@ -208,7 +208,12 @@ mod tests {
 
     fn save(core: &Core, pid: &str) -> String {
         core.save_version(
-            &SaveRequest { project_id: pid.into(), request_id: crate::new_id(), name: "第一版".into(), note: String::new() },
+            &SaveRequest {
+                project_id: pid.into(),
+                request_id: crate::new_id(),
+                name: "第一版".into(),
+                note: String::new(),
+            },
             &NoProgress,
         )
         .unwrap()
@@ -216,7 +221,13 @@ mod tests {
     }
 
     fn q(name: Option<&str>, ext: Option<&str>, path: Option<&str>) -> SearchQuery {
-        SearchQuery { name: name.map(Into::into), ext: ext.map(Into::into), path: path.map(Into::into), scope: None, page: 0 }
+        SearchQuery {
+            name: name.map(Into::into),
+            ext: ext.map(Into::into),
+            path: path.map(Into::into),
+            scope: None,
+            page: 0,
+        }
     }
 
     /// AC-0021：名称包含、扩展名完整匹配、路径包含、通配符、多条件、大小写、无结果。
@@ -253,7 +264,8 @@ mod tests {
         assert!(all.hits[0].created_at >= all.hits[1].created_at);
 
         let s = core.create_scheme(&pid, &v1, "方案").unwrap();
-        let scoped = SearchQuery { scope: Some(SwitchTarget::Scheme { scheme_id: s.scheme_id }), ..q(Some("new"), None, None) };
+        let scoped =
+            SearchQuery { scope: Some(SwitchTarget::Scheme { scheme_id: s.scheme_id }), ..q(Some("new"), None, None) };
         assert_eq!(core.search_files(&pid, &scoped).unwrap().total, 0, "方案只追溯到 V1");
         let scoped = SearchQuery { scope: Some(SwitchTarget::Default), ..q(Some("new"), None, None) };
         assert_eq!(core.search_files(&pid, &scoped).unwrap().total, 1);

@@ -61,11 +61,7 @@ impl CasePolicy {
 
 /// 当前操作系统常见文件系统的默认大小写策略。
 pub fn default_case_policy() -> CasePolicy {
-    if cfg!(any(windows, target_os = "macos")) {
-        CasePolicy::Insensitive
-    } else {
-        CasePolicy::Sensitive
-    }
+    if cfg!(any(windows, target_os = "macos")) { CasePolicy::Insensitive } else { CasePolicy::Sensitive }
 }
 
 /// 探测目录所在文件系统是否区分大小写。

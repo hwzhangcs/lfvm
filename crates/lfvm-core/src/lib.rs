@@ -12,6 +12,7 @@ pub mod exclude;
 pub mod glob;
 pub mod hash;
 pub mod history;
+pub mod log;
 pub mod model;
 pub mod ops;
 pub mod output;

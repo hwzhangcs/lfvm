@@ -125,8 +125,7 @@ impl Matcher {
         if self.dirs.iter().any(|d| rel.is_within(d, self.policy)) {
             return true;
         }
-        !self.patterns.is_empty()
-            && rel.components().any(|c| self.patterns.iter().any(|p| wildcard_match(p, c)))
+        !self.patterns.is_empty() && rel.components().any(|c| self.patterns.iter().any(|p| wildcard_match(p, c)))
     }
 
     /// 某条规则是否匹配 `rel`（用于统计每条规则匹配的文件数）。

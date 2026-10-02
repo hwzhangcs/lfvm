@@ -9,12 +9,12 @@
 use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
 
+use crate::Core;
 use crate::error::{CoreError, CoreResult, ErrorCode};
 use crate::exclude::{self, Matcher};
 use crate::paths::{RelPath, path_key};
 use crate::project::{VersionBrief, load_project};
 use crate::scheme::{SwitchTarget, scheme_head};
-use crate::Core;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -183,10 +183,13 @@ impl Core {
             let mut seen = std::collections::HashSet::new();
             'outer: for h in hashes.iter().collect::<std::collections::HashSet<_>>() {
                 for v in &ids {
-                    for row in stmt.query_map(params![h, key, v], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))? {
+                    for row in
+                        stmt.query_map(params![h, key, v], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+                    {
                         let (p, vid) = row?;
                         if seen.insert(p.clone()) {
-                            same_content.push(SameContent { path: p, version: crate::project::version_brief(&db, &vid)? });
+                            same_content
+                                .push(SameContent { path: p, version: crate::project::version_brief(&db, &vid)? });
                             if same_content.len() >= 20 {
                                 break 'outer;
                             }
@@ -229,7 +232,12 @@ mod tests {
         let pid = core.add_project(&w, None).unwrap().project_id;
         let save = || {
             core.save_version(
-                &SaveRequest { project_id: pid.clone(), request_id: crate::new_id(), name: String::new(), note: String::new() },
+                &SaveRequest {
+                    project_id: pid.clone(),
+                    request_id: crate::new_id(),
+                    name: String::new(),
+                    note: String::new(),
+                },
                 &NoProgress,
             )
             .unwrap()
@@ -245,7 +253,12 @@ mod tests {
         std::fs::write(w.join("a.txt"), "3").unwrap();
         save(); // V4 再出现
         let mut rules: Vec<_> = core.exclusion_rules(&pid).unwrap().into_iter().map(|v| v.rule).collect();
-        rules.push(ExclusionRule { relative_path: "a.txt".into(), entry_type: RuleType::File, is_system_default: false, enabled: true });
+        rules.push(ExclusionRule {
+            relative_path: "a.txt".into(),
+            entry_type: RuleType::File,
+            is_system_default: false,
+            enabled: true,
+        });
         core.save_exclusion_rules(&pid, &rules).unwrap();
         save(); // V5 因排除未纳入
 

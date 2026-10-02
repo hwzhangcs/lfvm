@@ -106,7 +106,8 @@ impl Plan {
             (Action::Create | Action::Replace, EntryType::File) => 3,
             _ => 4,
         };
-        let mut v: Vec<(usize, &PlanItem)> = self.items.iter().enumerate().filter(|(_, i)| i.action != Action::Keep).collect();
+        let mut v: Vec<(usize, &PlanItem)> =
+            self.items.iter().enumerate().filter(|(_, i)| i.action != Action::Keep).collect();
         v.sort_by(|(_, a), (_, b)| {
             rank(a).cmp(&rank(b)).then_with(|| match rank(a) {
                 1 => depth(b).cmp(&depth(a)),
@@ -131,7 +132,11 @@ pub fn compute(current: &Scan, matcher: &Matcher, target: &Manifest, root: &Path
     };
     // 目录下是否有被排除的内容（这样的目录不能删除）
     let holds_excluded = |dir: &RelPath| current.excluded.iter().any(|e| policy_free_within(e, dir));
-    let conflict = |path: &str, msg: String| ScanProblem { path: path.to_owned(), code: ErrorCode::StructureConflict, message: msg };
+    let conflict = |path: &str, msg: String| ScanProblem {
+        path: path.to_owned(),
+        code: ErrorCode::StructureConflict,
+        message: msg,
+    };
     let size = |s: Option<u64>| s.map(|v| v as i64);
 
     for (key, t) in target {
@@ -168,10 +173,8 @@ pub fn compute(current: &Scan, matcher: &Matcher, target: &Manifest, root: &Path
         match current.entries.get(key) {
             None => {
                 if std::fs::symlink_metadata(rel.to_path(root)).is_ok() {
-                    plan.conflicts.push(conflict(
-                        &t.rel,
-                        "目标版本需要在这里放置内容，但这个位置当前被排除的内容占用".into(),
-                    ));
+                    plan.conflicts
+                        .push(conflict(&t.rel, "目标版本需要在这里放置内容，但这个位置当前被排除的内容占用".into()));
                 } else {
                     plan.items.push(create(false));
                 }
@@ -261,7 +264,12 @@ mod tests {
     }
 
     fn dir_rule(p: &str) -> ExclusionRule {
-        ExclusionRule { relative_path: p.into(), entry_type: RuleType::Directory, is_system_default: false, enabled: true }
+        ExclusionRule {
+            relative_path: p.into(),
+            entry_type: RuleType::Directory,
+            is_system_default: false,
+            enabled: true,
+        }
     }
 
     fn actions(p: &Plan) -> Vec<(&str, Action)> {
@@ -278,9 +286,10 @@ mod tests {
                 .collect(),
             ..Default::default()
         };
-        let target: Manifest = [m("same", F, Some("1")), m("mod", F, Some("2")), m("new", F, Some("3")), m("nd", D, None)]
-            .into_iter()
-            .collect();
+        let target: Manifest =
+            [m("same", F, Some("1")), m("mod", F, Some("2")), m("new", F, Some("3")), m("nd", D, None)]
+                .into_iter()
+                .collect();
         let d = tempfile::tempdir().unwrap();
         let p = compute(&scan, &Matcher::empty(S), &target, d.path());
         assert!(p.conflicts.is_empty());
@@ -336,7 +345,8 @@ mod tests {
         let target: Manifest = [m("t", D, None), m("t/x", F, Some("2"))].into_iter().collect();
         let d = tempfile::tempdir().unwrap();
         let p = compute(&scan, &Matcher::empty(S), &target, d.path());
-        let order: Vec<(&str, Action, EntryType)> = p.ordered().iter().map(|(_, i)| (i.path.as_str(), i.action, i.entry_type)).collect();
+        let order: Vec<(&str, Action, EntryType)> =
+            p.ordered().iter().map(|(_, i)| (i.path.as_str(), i.action, i.entry_type)).collect();
         assert_eq!(order, [("t", Action::Delete, F), ("t", Action::Create, D), ("t/x", Action::Create, F)]);
     }
 

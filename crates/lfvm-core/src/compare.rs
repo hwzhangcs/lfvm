@@ -10,10 +10,11 @@ use lfvm_platform::CasePolicy;
 use serde::Serialize;
 use similar::{Algorithm, ChangeTag, TextDiff};
 
+use crate::Core;
 use crate::changes::{Manifest, load_manifest};
 use crate::content::{
-    ImageInfo, SourceRef, check_source, decode_text, probe_image, read_object, sniff_image, IMAGE_MAX_BYTES,
-    TEXT_MAX_BYTES,
+    IMAGE_MAX_BYTES, ImageInfo, SourceRef, TEXT_MAX_BYTES, check_source, decode_text, probe_image, read_object,
+    sniff_image,
 };
 use crate::error::{CoreError, CoreResult, ErrorCode};
 use crate::exclude::{self, Matcher};
@@ -21,7 +22,6 @@ use crate::model::EntryType;
 use crate::paths::{RelPath, path_key};
 use crate::project::{VersionBrief, load_project, version_brief};
 use crate::store::ObjectStore;
-use crate::Core;
 
 /// 文本比较的时间上限，超过即降级为文件级状态。
 pub const DIFF_TIMEOUT: Duration = Duration::from_secs(5);
@@ -179,7 +179,8 @@ pub(crate) fn diff_manifests(
     scope: Option<&RelPath>,
     policy: CasePolicy,
 ) -> (Vec<CompareItem>, CompareCounts) {
-    let in_scope = |rel: &str| scope.is_none_or(|s| RelPath::parse(rel).is_ok_and(|r| r.is_within(s, policy) && r != *s));
+    let in_scope =
+        |rel: &str| scope.is_none_or(|s| RelPath::parse(rel).is_ok_and(|r| r.is_within(s, policy) && r != *s));
     let size = |s: Option<u64>| s.map(|v| v as i64);
     let mut items = Vec::new();
     let mut c = CompareCounts::default();
@@ -194,7 +195,13 @@ pub(crate) fn diff_manifests(
             Some(_) => continue,
         };
         let size_a = a.get(key).and_then(|e| size(e.size));
-        items.push(CompareItem { path: eb.rel.clone(), kind, entry_type: eb.entry_type, size_a, size_b: size(eb.size) });
+        items.push(CompareItem {
+            path: eb.rel.clone(),
+            kind,
+            entry_type: eb.entry_type,
+            size_a,
+            size_b: size(eb.size),
+        });
     }
     for (key, ea) in a {
         if b.contains_key(key) || !in_scope(&ea.rel) {
@@ -234,9 +241,11 @@ pub(crate) fn diff_objects(store: &ObjectStore, a: Option<&str>, b: Option<&str>
     let is_image = [a, b].iter().flatten().any(|h| sniff_image(&head_of(store, h)).is_some());
     if is_image {
         let side = |h: Option<&str>| {
-            h.map(|h| match read_object(store, h, IMAGE_MAX_BYTES).map_err(|e| e.message).and_then(|b| probe_image(&b)) {
-                Ok(info) => ImageSide { hash: h.to_owned(), info: Some(info), reason: None },
-                Err(r) => ImageSide { hash: h.to_owned(), info: None, reason: Some(r) },
+            h.map(|h| {
+                match read_object(store, h, IMAGE_MAX_BYTES).map_err(|e| e.message).and_then(|b| probe_image(&b)) {
+                    Ok(info) => ImageSide { hash: h.to_owned(), info: Some(info), reason: None },
+                    Err(r) => ImageSide { hash: h.to_owned(), info: None, reason: Some(r) },
+                }
             })
         };
         return FileDiff::Image { a: side(a), b: side(b) };
@@ -246,7 +255,11 @@ pub(crate) fn diff_objects(store: &ObjectStore, a: Option<&str>, b: Option<&str>
             None => Ok(None),
             Some(h) => {
                 let bytes = read_object(store, h, TEXT_MAX_BYTES).map_err(|e| {
-                    if e.code == ErrorCode::InvalidInput { "文本超过 10 MB，只显示是否有变化".to_owned() } else { e.message }
+                    if e.code == ErrorCode::InvalidInput {
+                        "文本超过 10 MB，只显示是否有变化".to_owned()
+                    } else {
+                        e.message
+                    }
                 })?;
                 decode_text(&bytes).map(Some)
             }
@@ -317,7 +330,11 @@ pub fn eol_notes(old: &str, new: &str) -> Vec<String> {
     }
     let (ea, eb) = (old.ends_with('\n'), new.ends_with('\n'));
     if !old.is_empty() && !new.is_empty() && ea != eb {
-        notes.push(if eb { "B 在文件末尾增加了换行".into() } else { "B 去掉了文件末尾的换行".into() });
+        notes.push(if eb {
+            "B 在文件末尾增加了换行".into()
+        } else {
+            "B 去掉了文件末尾的换行".into()
+        });
     }
     notes
 }
@@ -336,7 +353,12 @@ mod tests {
             .map(|(p, t, h)| {
                 (
                     (*p).to_owned(),
-                    ManifestEntry { rel: (*p).to_owned(), entry_type: *t, size: h.map(|_| 1), hash: h.map(str::to_owned) },
+                    ManifestEntry {
+                        rel: (*p).to_owned(),
+                        entry_type: *t,
+                        size: h.map(|_| 1),
+                        hash: h.map(str::to_owned),
+                    },
                 )
             })
             .collect()
@@ -345,8 +367,14 @@ mod tests {
     #[test]
     fn manifest_diff_is_directional() {
         use EntryType::*;
-        let a = m(&[("same", File, Some("1")), ("mod", File, Some("1")), ("gone", File, Some("1")), ("t", Directory, None)]);
-        let b = m(&[("same", File, Some("1")), ("mod", File, Some("2")), ("new", File, Some("1")), ("t", File, Some("1"))]);
+        let a = m(&[
+            ("same", File, Some("1")),
+            ("mod", File, Some("1")),
+            ("gone", File, Some("1")),
+            ("t", Directory, None),
+        ]);
+        let b =
+            m(&[("same", File, Some("1")), ("mod", File, Some("2")), ("new", File, Some("1")), ("t", File, Some("1"))]);
         let (items, c) = diff_manifests(&a, &b, &Matcher::empty(S), None, S);
         let got: Vec<_> = items.iter().map(|i| (i.path.as_str(), i.kind)).collect();
         assert_eq!(
@@ -370,9 +398,19 @@ mod tests {
     #[test]
     fn excluded_in_b_and_scope() {
         use EntryType::*;
-        let a = m(&[("cache", Directory, None), ("cache/x", File, Some("1")), ("src/a", File, Some("1")), ("doc/b", File, Some("1"))]);
+        let a = m(&[
+            ("cache", Directory, None),
+            ("cache/x", File, Some("1")),
+            ("src/a", File, Some("1")),
+            ("doc/b", File, Some("1")),
+        ]);
         let b = m(&[]);
-        let rule = ExclusionRule { relative_path: "cache".into(), entry_type: RuleType::Directory, is_system_default: false, enabled: true };
+        let rule = ExclusionRule {
+            relative_path: "cache".into(),
+            entry_type: RuleType::Directory,
+            is_system_default: false,
+            enabled: true,
+        };
         let bm = Matcher::new(&[rule], S).unwrap();
         let (items, c) = diff_manifests(&a, &b, &bm, None, S);
         assert_eq!(c.excluded_in_b, 2);

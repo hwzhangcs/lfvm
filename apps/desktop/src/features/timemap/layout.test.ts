@@ -30,6 +30,7 @@ const map: TimeMap = {
   ],
   default_head: "v4",
   active_scheme_id: null,
+  over_scale: false,
 };
 
 describe("时间地图布局", () => {

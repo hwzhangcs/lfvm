@@ -15,6 +15,7 @@ use lfvm_platform::EntryKind;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
+use crate::Core;
 use crate::changes::load_manifest;
 use crate::content::{SourceRef, check_source};
 use crate::error::{CoreError, CoreResult, ErrorCode};
@@ -28,7 +29,6 @@ use crate::progress::{Progress, Stage};
 use crate::project::{load_project, version_brief};
 use crate::scheme::scheme_head;
 use crate::store::ObjectStore;
-use crate::Core;
 
 /// 输出哪个版本：直接指定版本，或某个方案（以其当前末端为准）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -113,7 +113,9 @@ impl Core {
             .map_err(|_| CoreError::new(ErrorCode::InvalidInput, "文件夹名称为空或含有不能使用的字符"))?;
         let meta = std::fs::symlink_metadata(&target.parent).map_err(|e| CoreError::io(e, &target.parent))?;
         if lfvm_platform::classify(&meta) != EntryKind::Dir {
-            return Err(CoreError::new(ErrorCode::InvalidInput, "请选择一个文件夹作为输出位置").with_path(&target.parent));
+            return Err(
+                CoreError::new(ErrorCode::InvalidInput, "请选择一个文件夹作为输出位置").with_path(&target.parent)
+            );
         }
         let parent = paths::canonical(&target.parent)?;
         let dest = parent.join(&target.folder_name);
@@ -135,10 +137,18 @@ impl Core {
             Ok(m) if lfvm_platform::classify(&m) == EntryKind::Dir => {
                 let empty = std::fs::read_dir(&dest).map_err(|e| CoreError::io(e, &dest))?.next().is_none();
                 if !empty {
-                    return Err(CoreError::new(ErrorCode::AlreadyExists, "目标文件夹不是空的，请改选或换一个名称（不会合并或覆盖）").with_path(&dest));
+                    return Err(CoreError::new(
+                        ErrorCode::AlreadyExists,
+                        "目标文件夹不是空的，请改选或换一个名称（不会合并或覆盖）",
+                    )
+                    .with_path(&dest));
                 }
             }
-            Ok(_) => return Err(CoreError::new(ErrorCode::AlreadyExists, "目标位置已有同名文件，请换一个名称").with_path(&dest)),
+            Ok(_) => {
+                return Err(
+                    CoreError::new(ErrorCode::AlreadyExists, "目标位置已有同名文件，请换一个名称").with_path(&dest)
+                );
+            }
         }
         Ok(dest)
     }
@@ -165,7 +175,12 @@ impl Core {
                     project_id,
                     request_id,
                     op_type,
-                    target_ref: TargetRef { label: label.clone(), scheme: None, path: Some(dest.to_string_lossy().into_owned()) }.to_json(),
+                    target_ref: TargetRef {
+                        label: label.clone(),
+                        scheme: None,
+                        path: Some(dest.to_string_lossy().into_owned()),
+                    }
+                    .to_json(),
                     resolved_version_id: Some(&version),
                     retry_of: None,
                 },
@@ -186,8 +201,11 @@ impl Core {
         let result = (|| -> CoreResult<()> {
             // 写入前检查：名称在当前系统上可用、目标盘空间足够
             for e in &entries {
-                if let Some(bad) = RelPath::parse(&e.rel)?.components().find(|c| lfvm_platform::validate_component(c).is_err()) {
-                    return Err(CoreError::new(ErrorCode::InvalidPath, format!("名称“{bad}”在当前系统上不能使用")).with_path(&e.rel));
+                if let Some(bad) =
+                    RelPath::parse(&e.rel)?.components().find(|c| lfvm_platform::validate_component(c).is_err())
+                {
+                    return Err(CoreError::new(ErrorCode::InvalidPath, format!("名称“{bad}”在当前系统上不能使用"))
+                        .with_path(&e.rel));
                 }
             }
             let bytes: u64 = entries.iter().filter_map(|e| e.size).sum();
@@ -212,7 +230,11 @@ impl Core {
                     EntryType::File => {
                         let hash = e.hash.as_deref().unwrap_or_default();
                         // create_new：绝不覆盖已存在的文件
-                        let out = OpenOptions::new().write(true).create_new(true).open(&abs).map_err(|err| CoreError::io(err, &abs))?;
+                        let out = OpenOptions::new()
+                            .write(true)
+                            .create_new(true)
+                            .open(&abs)
+                            .map_err(|err| CoreError::io(err, &abs))?;
                         created.push(abs.clone());
                         let r = (|| {
                             let src = store.open(hash)?;
@@ -220,7 +242,10 @@ impl Core {
                             let (got, _) = hash_reader(src, Some(&mut w)).map_err(|err| CoreError::io(err, &abs))?;
                             w.flush().map_err(|err| CoreError::io(err, &abs))?;
                             if got != hash {
-                                return Err(CoreError::new(ErrorCode::ContentCorrupted, "历史内容已损坏（校验不一致）"));
+                                return Err(CoreError::new(
+                                    ErrorCode::ContentCorrupted,
+                                    "历史内容已损坏（校验不一致）",
+                                ));
                             }
                             Ok(())
                         })();
@@ -254,7 +279,13 @@ impl Core {
                 if e.code == ErrorCode::Cancelled {
                     (OpStatus::Cancelled, format!("已取消{what}，已清理本次创建的文件"))
                 } else {
-                    (OpStatus::Failed, format!("{what}没有完成：{}。已写入 {written}/{total_files} 个文件，已清理本次创建的文件", e.message))
+                    (
+                        OpStatus::Failed,
+                        format!(
+                            "{what}没有完成：{}。已写入 {written}/{total_files} 个文件，已清理本次创建的文件",
+                            e.message
+                        ),
+                    )
                 }
             }
         };
@@ -318,7 +349,15 @@ mod tests {
 
     fn save(e: &Env, name: &str) -> String {
         e.core
-            .save_version(&SaveRequest { project_id: e.pid.clone(), request_id: crate::new_id(), name: name.into(), note: String::new() }, &NoProgress)
+            .save_version(
+                &SaveRequest {
+                    project_id: e.pid.clone(),
+                    request_id: crate::new_id(),
+                    name: name.into(),
+                    note: String::new(),
+                },
+                &NoProgress,
+            )
             .unwrap()
             .version_id
     }
@@ -340,7 +379,10 @@ mod tests {
     fn export_matches_manifest() {
         let e = env();
         let v1 = save(&e, "交作业版");
-        assert_eq!(e.core.suggest_output_name(&e.pid, &OutputSource::Version { version_id: v1.clone() }).unwrap(), "作业_交作业版");
+        assert_eq!(
+            e.core.suggest_output_name(&e.pid, &OutputSource::Version { version_id: v1.clone() }).unwrap(),
+            "作业_交作业版"
+        );
         let r = out(&e, OutputKind::Export, OutputSource::Version { version_id: v1 }, "导出").unwrap();
         assert_eq!(r.status, OpStatus::Succeeded);
         assert_eq!((r.files_written, r.total_files), (3, 3));
@@ -393,7 +435,8 @@ mod tests {
         let v1 = save(&e, "");
         // 破坏一个内容对象
         let h = crate::hash::hash_bytes(b"B");
-        std::fs::write(ObjectStore::new(&e.core.project_store_dir(&e.pid)).object_path(&h).unwrap(), "corrupt").unwrap();
+        std::fs::write(ObjectStore::new(&e.core.project_store_dir(&e.pid)).object_path(&h).unwrap(), "corrupt")
+            .unwrap();
         std::fs::create_dir_all(e.tmp.path().join("pre")).unwrap();
         let r = out(&e, OutputKind::Export, OutputSource::Version { version_id: v1 }, "pre").unwrap();
         assert_eq!(r.status, OpStatus::Failed);

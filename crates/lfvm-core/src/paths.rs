@@ -18,9 +18,7 @@ pub struct RelPath(String);
 impl RelPath {
     /// 解析用户输入或数据库中的相对路径。接受 “\” 作为分隔符。
     pub fn parse(input: &str) -> CoreResult<Self> {
-        let invalid = |why: &str| {
-            CoreError::new(ErrorCode::InvalidPath, format!("路径“{input}”无效：{why}"))
-        };
+        let invalid = |why: &str| CoreError::new(ErrorCode::InvalidPath, format!("路径“{input}”无效：{why}"));
         let s = input.replace('\\', "/");
         if s.starts_with('/') || has_drive_prefix(&s) {
             return Err(invalid("不能使用绝对路径"));
@@ -49,10 +47,7 @@ impl RelPath {
             || name.contains(['/', '\\'])
             || name.chars().any(char::is_control)
         {
-            return Err(CoreError::new(
-                ErrorCode::InvalidPath,
-                format!("名称“{name}”含有无法处理的字符"),
-            ));
+            return Err(CoreError::new(ErrorCode::InvalidPath, format!("名称“{name}”含有无法处理的字符")));
         }
         let name: String = name.nfc().collect();
         Ok(match parent {
@@ -132,19 +127,18 @@ pub fn path_key(s: &str, policy: CasePolicy) -> String {
 
 /// 求 `abs` 相对 `root` 的路径。`abs` 必须位于 `root` 之内。
 pub fn relative_to(root: &Path, abs: &Path) -> CoreResult<RelPath> {
-    let rest = abs.strip_prefix(root).map_err(|_| {
-        CoreError::new(ErrorCode::PathOutOfScope, "路径不在项目文件夹内").with_path(abs)
-    })?;
+    let rest = abs
+        .strip_prefix(root)
+        .map_err(|_| CoreError::new(ErrorCode::PathOutOfScope, "路径不在项目文件夹内").with_path(abs))?;
     let mut parts = Vec::new();
     for c in rest.components() {
         match c {
-            Component::Normal(os) => parts.push(os.to_str().ok_or_else(|| {
-                CoreError::new(ErrorCode::InvalidPath, "路径中含有无法处理的字符").with_path(abs)
-            })?),
+            Component::Normal(os) => parts
+                .push(os.to_str().ok_or_else(|| {
+                    CoreError::new(ErrorCode::InvalidPath, "路径中含有无法处理的字符").with_path(abs)
+                })?),
             _ => {
-                return Err(
-                    CoreError::new(ErrorCode::InvalidPath, "路径无法解析").with_path(abs)
-                );
+                return Err(CoreError::new(ErrorCode::InvalidPath, "路径无法解析").with_path(abs));
             }
         }
     }

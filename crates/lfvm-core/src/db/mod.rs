@@ -8,10 +8,8 @@ use crate::error::{CoreError, CoreResult, ErrorCode};
 
 /// 按顺序执行的迁移脚本。`PRAGMA user_version` 记录已执行到第几个。
 /// 已发布的脚本不得修改，结构变化只能追加新脚本。
-const MIGRATIONS: &[&str] = &[
-    include_str!("../../migrations/0001_init.sql"),
-    include_str!("../../migrations/0002_backup_external_root.sql"),
-];
+const MIGRATIONS: &[&str] =
+    &[include_str!("../../migrations/0001_init.sql"), include_str!("../../migrations/0002_backup_external_root.sql")];
 
 pub fn open(path: &Path) -> CoreResult<Connection> {
     let conn = Connection::open(path).map_err(|e| CoreError::from(e).with_path(path))?;
@@ -41,10 +39,7 @@ fn configure(conn: &Connection) -> CoreResult<()> {
 fn migrate(conn: &Connection) -> CoreResult<()> {
     let current: usize = conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))? as usize;
     if current > MIGRATIONS.len() {
-        return Err(CoreError::new(
-            ErrorCode::Database,
-            "历史记录由更新版本的程序创建，请升级本软件后再打开",
-        ));
+        return Err(CoreError::new(ErrorCode::Database, "历史记录由更新版本的程序创建，请升级本软件后再打开"));
     }
     for (i, sql) in MIGRATIONS.iter().enumerate().skip(current) {
         let tx = conn.unchecked_transaction()?;
@@ -67,9 +62,8 @@ mod tests {
         let conn = open(&path).unwrap();
         let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
         assert_eq!(v as usize, MIGRATIONS.len());
-        let tables: i64 = conn
-            .query_row("SELECT count(*) FROM sqlite_master WHERE type = 'table'", [], |r| r.get(0))
-            .unwrap();
+        let tables: i64 =
+            conn.query_row("SELECT count(*) FROM sqlite_master WHERE type = 'table'", [], |r| r.get(0)).unwrap();
         assert_eq!(tables, 11);
     }
 

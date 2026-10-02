@@ -13,6 +13,7 @@ use lfvm_platform::EntryKind;
 use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 
+use crate::Core;
 use crate::content::{SourceRef, find_file};
 use crate::error::{CoreError, CoreResult, ErrorCode};
 use crate::exclude::{self, Matcher};
@@ -30,7 +31,6 @@ use crate::paths::{self, RelPath, path_key};
 use crate::progress::Progress;
 use crate::project::load_project;
 use crate::store::ObjectStore;
-use crate::Core;
 
 /// 恢复到哪里。另存的文件夹由用户通过系统对话框选择（LFVM-IF-03）。
 #[derive(Debug, Clone)]
@@ -84,7 +84,13 @@ fn token_of(meta: &std::fs::Metadata) -> String {
 }
 
 impl Core {
-    fn resolve_file_target(&self, project_id: &str, source: &SourceRef, path: &str, target: &FileTarget) -> CoreResult<Resolved> {
+    fn resolve_file_target(
+        &self,
+        project_id: &str,
+        source: &SourceRef,
+        path: &str,
+        target: &FileTarget,
+    ) -> CoreResult<Resolved> {
         let db = self.db();
         let project = load_project(&db, project_id)?;
         let rec = find_file(&db, project_id, source, path)?;
@@ -120,14 +126,15 @@ impl Core {
                 }
                 let dir = paths::canonical(dir)?;
                 if paths::same_or_nested(&dir, self.data_dir(), lfvm_platform::default_case_policy()) {
-                    return Err(CoreError::new(ErrorCode::DirectoryOverlap, "不能保存到本软件的历史存储位置").with_path(&dir));
+                    return Err(
+                        CoreError::new(ErrorCode::DirectoryOverlap, "不能保存到本软件的历史存储位置").with_path(&dir)
+                    );
                 }
                 let name = RelPath::parse(&rec.rel)?.file_name().to_owned();
                 (dir.clone(), RelPath::parse(&name)?, Some(dir))
             }
         };
-        let excluded = external_root.is_none()
-            && Matcher::new(&rules, project.policy)?.is_excluded(&rel, false);
+        let excluded = external_root.is_none() && Matcher::new(&rules, project.policy)?.is_excluded(&rel, false);
         Ok(Resolved { root, rel, external_root, hash, size: rec.size.unwrap_or(0), excluded })
     }
 
@@ -143,7 +150,8 @@ impl Core {
         let abs = r.rel.to_path(&r.root);
         let meta = std::fs::symlink_metadata(&abs).ok();
         if meta.as_ref().is_some_and(|m| lfvm_platform::classify(m) != EntryKind::File) {
-            return Err(CoreError::new(ErrorCode::StructureConflict, "目标位置是一个文件夹或快捷链接，无法用文件替换").with_path(&abs));
+            return Err(CoreError::new(ErrorCode::StructureConflict, "目标位置是一个文件夹或快捷链接，无法用文件替换")
+                .with_path(&abs));
         }
         Ok(FileRestoreCheck {
             target_path: abs.to_string_lossy().into_owned(),
@@ -160,25 +168,42 @@ impl Core {
     }
 
     /// 按单文件写入协议恢复一个历史文件。项目处于“未完成”状态时也允许（SRS 6.1.1）。
-    pub fn restore_file(&self, req: &FileRestoreRequest, target: &FileTarget, progress: &dyn Progress) -> CoreResult<OperationResult> {
+    pub fn restore_file(
+        &self,
+        req: &FileRestoreRequest,
+        target: &FileTarget,
+        progress: &dyn Progress,
+    ) -> CoreResult<OperationResult> {
         let _guard = self.begin_write(&req.project_id)?;
         let r = self.resolve_file_target(&req.project_id, &req.source, &req.path, target)?;
         if r.excluded {
-            return Err(CoreError::new(ErrorCode::InvalidInput, "原位置属于当前排除项，不能原位覆盖，请选择“另存到其他位置”"));
+            return Err(CoreError::new(
+                ErrorCode::InvalidInput,
+                "原位置属于当前排除项，不能原位覆盖，请选择“另存到其他位置”",
+            ));
         }
         let abs = r.rel.to_path(&r.root);
         check_no_links(&r.root, &r.rel, &mut HashSet::new())?;
         let existing = std::fs::symlink_metadata(&abs).ok();
         if let Some(m) = &existing {
             if lfvm_platform::classify(m) != EntryKind::File {
-                return Err(CoreError::new(ErrorCode::StructureConflict, "目标位置是一个文件夹或快捷链接，无法用文件替换").with_path(&abs));
+                return Err(CoreError::new(
+                    ErrorCode::StructureConflict,
+                    "目标位置是一个文件夹或快捷链接，无法用文件替换",
+                )
+                .with_path(&abs));
             }
             match &req.confirm_token {
                 None => {
-                    return Err(CoreError::new(ErrorCode::NeedsConfirmation, "目标位置已有同名文件，需要确认是否替换").with_path(&abs));
+                    return Err(CoreError::new(ErrorCode::NeedsConfirmation, "目标位置已有同名文件，需要确认是否替换")
+                        .with_path(&abs));
                 }
                 Some(t) if *t != token_of(m) => {
-                    return Err(CoreError::new(ErrorCode::ChangedExternally, "目标文件在确认后被修改，为避免覆盖新的修改，没有替换").with_path(&abs));
+                    return Err(CoreError::new(
+                        ErrorCode::ChangedExternally,
+                        "目标文件在确认后被修改，为避免覆盖新的修改，没有替换",
+                    )
+                    .with_path(&abs));
                 }
                 _ => {}
             }
@@ -269,7 +294,8 @@ impl Core {
             match &before {
                 Some((h, _)) => verify_unchanged(&abs, Some(h))?,
                 None if std::fs::symlink_metadata(&abs).is_ok() => {
-                    return Err(CoreError::new(ErrorCode::ChangedExternally, "目标位置出现了新的同名文件，没有替换").with_path(&abs));
+                    return Err(CoreError::new(ErrorCode::ChangedExternally, "目标位置出现了新的同名文件，没有替换")
+                        .with_path(&abs));
                 }
                 None => {}
             }
@@ -279,7 +305,11 @@ impl Core {
         if let Err(e) = replaced {
             cleanup(&tmp);
             let _ = set_item_state(&self.db(), &op_id, 0, &item.key, ItemState::Failed, Some(&e));
-            let note = if before.is_some() { "原文件没有被改动，也已存入安全备份" } else { "没有写入任何文件" };
+            let note = if before.is_some() {
+                "原文件没有被改动，也已存入安全备份"
+            } else {
+                "没有写入任何文件"
+            };
             return finish(OpStatus::Failed, &format!("{}（{note}）", e.message));
         }
 

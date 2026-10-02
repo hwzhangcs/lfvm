@@ -244,12 +244,7 @@ pub(crate) fn load_cache(conn: &Connection, project_id: &str) -> CoreResult<Scan
     let rows = stmt.query_map([project_id], |r| {
         Ok((
             r.get::<_, String>(0)?,
-            CacheEntry {
-                size: r.get::<_, i64>(1)? as u64,
-                mtime_ns: r.get(2)?,
-                file_id: r.get(3)?,
-                hash: r.get(4)?,
-            },
+            CacheEntry { size: r.get::<_, i64>(1)? as u64, mtime_ns: r.get(2)?, file_id: r.get(3)?, hash: r.get(4)? },
         ))
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
@@ -326,7 +321,10 @@ mod tests {
             .iter()
             .filter_map(|(k, e)| {
                 e.hash.as_ref().map(|h| {
-                    (k.clone(), CacheEntry { size: e.size, mtime_ns: e.mtime_ns, file_id: e.file_id.clone(), hash: h.clone() })
+                    (
+                        k.clone(),
+                        CacheEntry { size: e.size, mtime_ns: e.mtime_ns, file_id: e.file_id.clone(), hash: h.clone() },
+                    )
                 })
             })
             .collect();

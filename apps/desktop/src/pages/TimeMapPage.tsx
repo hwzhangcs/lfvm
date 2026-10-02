@@ -134,6 +134,7 @@ export function TimeMapPage() {
 
   return (
     <Flex vertical gap={12} style={{ height: "100%" }}>
+      {map.data.over_scale && <Alert type="info" showIcon title={t.overScale} />}
       <Card size="small">
         <Flex gap={12} wrap align="center">
           <Select

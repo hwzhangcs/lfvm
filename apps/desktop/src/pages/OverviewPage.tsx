@@ -198,6 +198,7 @@ function ChangesBody({
           }
         />
       )}
+      {cs.over_scale && <Alert type="info" showIcon title={t.overScale} />}
       {cs.rules_changed && <Alert type="info" showIcon title={t.overview.rulesChanged} />}
       {!cs.baseline_version_id && <Alert type="info" showIcon title={t.overview.firstHint} />}
 

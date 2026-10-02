@@ -84,9 +84,8 @@ impl Core {
         let scan = scan::scan(&project.root, &matcher, project.policy, &cache, progress)?;
         scan::store_cache(&mut self.db(), project_id, &scan, project.policy)?;
 
-        let rules_changed = baseline_rules.is_some_and(|old| {
-            exclude::snapshot_json(&exclude::parse_snapshot(&old), project.policy) != rules_json
-        });
+        let rules_changed = baseline_rules
+            .is_some_and(|old| exclude::snapshot_json(&exclude::parse_snapshot(&old), project.policy) != rules_json);
         let changes = changes::diff(baseline.as_deref(), &baseline_manifest, &scan, &matcher, rules_changed);
         Ok(Prepared { project, matcher, rules_json, baseline, scan, changes })
     }
@@ -117,7 +116,13 @@ impl Core {
             db.execute(
                 "INSERT INTO operations (operation_id, project_id, request_id, type, target_ref, created_at)
                  VALUES (?1, ?2, ?3, 'save', ?4, ?5)",
-                params![new_id(), req.project_id, req.request_id, project.active_scheme_id.as_deref().unwrap_or("default"), now_ms()],
+                params![
+                    new_id(),
+                    req.project_id,
+                    req.request_id,
+                    project.active_scheme_id.as_deref().unwrap_or("default"),
+                    now_ms()
+                ],
             )?;
         }
 
@@ -167,10 +172,7 @@ impl Core {
         // 2. 写入内容对象
         store.ensure_dirs()?;
         let files: Vec<_> = prep.scan.entries.values().filter(|e| !e.entry_type.is_dir()).collect();
-        let pending: Vec<_> = files
-            .iter()
-            .filter(|e| e.hash.as_deref().is_none_or(|h| !store.contains(h)))
-            .collect();
+        let pending: Vec<_> = files.iter().filter(|e| e.hash.as_deref().is_none_or(|h| !store.contains(h))).collect();
         let total: u64 = pending.iter().map(|e| e.size).sum();
         let mut done = 0u64;
         progress.report(Stage::Storing, 0, total);
@@ -193,7 +195,10 @@ impl Core {
             .iter()
             .filter_map(|(k, e)| {
                 e.hash.as_ref().map(|h| {
-                    (k.clone(), CacheEntry { size: e.size, mtime_ns: e.mtime_ns, file_id: e.file_id.clone(), hash: h.clone() })
+                    (
+                        k.clone(),
+                        CacheEntry { size: e.size, mtime_ns: e.mtime_ns, file_id: e.file_id.clone(), hash: h.clone() },
+                    )
                 })
             })
             .collect();
@@ -217,7 +222,8 @@ impl Core {
         if baseline_id(&tx, &project)? != prep.baseline {
             return Err(CoreError::new(ErrorCode::Busy, "项目状态已变化，请重新查看后保存"));
         }
-        let seq: u32 = tx.query_row("SELECT next_seq FROM projects WHERE project_id = ?1", [&req.project_id], |r| r.get(0))?;
+        let seq: u32 =
+            tx.query_row("SELECT next_seq FROM projects WHERE project_id = ?1", [&req.project_id], |r| r.get(0))?;
         let version_id = new_id();
         let excluded: Vec<&str> = prep.scan.excluded.iter().map(|r| r.as_str()).collect();
         tx.execute(
@@ -331,11 +337,16 @@ impl Core {
 }
 
 fn rules_snapshot_of(conn: &Connection, version_id: &str) -> CoreResult<String> {
-    Ok(conn.query_row("SELECT exclusion_rules_snapshot FROM versions WHERE version_id = ?1", [version_id], |r| r.get(0))?)
+    Ok(conn
+        .query_row("SELECT exclusion_rules_snapshot FROM versions WHERE version_id = ?1", [version_id], |r| r.get(0))?)
 }
 
 /// 同一请求已处理过时返回其结果。
-fn previous_request(conn: &Connection, project_id: &str, request_id: &str) -> CoreResult<Option<CoreResult<SaveResult>>> {
+fn previous_request(
+    conn: &Connection,
+    project_id: &str,
+    request_id: &str,
+) -> CoreResult<Option<CoreResult<SaveResult>>> {
     let row: Option<(String, Option<String>)> = conn
         .query_row(
             "SELECT status, resolved_version_id FROM operations WHERE project_id = ?1 AND request_id = ?2",
@@ -484,7 +495,12 @@ mod tests {
     fn duplicate_request_does_not_save_twice() {
         let e = env();
         std::fs::write(e.work.join("a.txt"), b"1").unwrap();
-        let req = SaveRequest { project_id: e.pid.clone(), request_id: "r1".into(), name: String::new(), note: String::new() };
+        let req = SaveRequest {
+            project_id: e.pid.clone(),
+            request_id: "r1".into(),
+            name: String::new(),
+            note: String::new(),
+        };
         let a = e.core.save_version(&req, &NoProgress).unwrap();
         let b = e.core.save_version(&req, &NoProgress).unwrap();
         assert_eq!(a.version_id, b.version_id);
@@ -525,7 +541,12 @@ mod tests {
             let err = e
                 .core
                 .save_version(
-                    &SaveRequest { project_id: e.pid.clone(), request_id: "x".into(), name: String::new(), note: String::new() },
+                    &SaveRequest {
+                        project_id: e.pid.clone(),
+                        request_id: "x".into(),
+                        name: String::new(),
+                        note: String::new(),
+                    },
                     &NoProgress,
                 )
                 .unwrap_err();
@@ -598,7 +619,12 @@ mod tests {
             let err = e
                 .core
                 .save_version(
-                    &SaveRequest { project_id: e.pid.clone(), request_id: new_id(), name: String::new(), note: String::new() },
+                    &SaveRequest {
+                        project_id: e.pid.clone(),
+                        request_id: new_id(),
+                        name: String::new(),
+                        note: String::new(),
+                    },
                     &m,
                 )
                 .unwrap_err();

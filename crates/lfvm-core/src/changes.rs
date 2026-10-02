@@ -93,7 +93,13 @@ pub struct ChangeSet {
     pub directory_count: u32,
     /// 有可保存的变化（尚无版本时总为 true，允许保存空文件夹）。
     pub has_changes: bool,
+    /// 项目规模超出已测试范围（LFVM-P-13），界面提示“操作可能较慢”。
+    pub over_scale: bool,
 }
+
+/// 已测试的项目规模（SRS 表 5-2 数据集 D1：1000 个文件，合计 1 GiB）。
+pub const TESTED_FILES: u32 = 1000;
+pub const TESTED_BYTES: u64 = 1 << 30;
 
 impl ChangeSet {
     pub fn can_save(&self) -> bool {
@@ -182,7 +188,9 @@ pub(crate) fn diff(
 
     let file_count = scan.entries.values().filter(|e| !e.entry_type.is_dir()).count() as u32;
     let directory_count = scan.entries.len() as u32 - file_count;
+    let total_bytes: u64 = scan.entries.values().map(|e| e.size).sum();
     ChangeSet {
+        over_scale: file_count > TESTED_FILES || total_bytes > TESTED_BYTES,
         baseline_version_id: baseline_id.map(str::to_owned),
         has_changes: baseline_id.is_none() || !items.is_empty() || rules_changed,
         items,
@@ -216,9 +224,9 @@ pub(crate) fn manifest_from_scan(scan: &Scan) -> Manifest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lfvm_platform::CasePolicy;
     use crate::exclude::{ExclusionRule, RuleType};
     use crate::scan::WorkEntry;
+    use lfvm_platform::CasePolicy;
 
     const S: CasePolicy = CasePolicy::Sensitive;
 
@@ -270,9 +278,13 @@ mod tests {
 
     #[test]
     fn classifies_changes_against_baseline() {
-        let base = manifest_from_scan(
-            &scan_of(vec![file("same", "1"), file("mod", "1"), file("gone", "1"), file("cache/x", "1"), dir("t")]),
-        );
+        let base = manifest_from_scan(&scan_of(vec![
+            file("same", "1"),
+            file("mod", "1"),
+            file("gone", "1"),
+            file("cache/x", "1"),
+            dir("t"),
+        ]));
         let now = scan_of(vec![file("same", "1"), file("mod", "2"), file("new", "1"), file("t", "9")]);
         let m = Matcher::new(
             &[ExclusionRule {

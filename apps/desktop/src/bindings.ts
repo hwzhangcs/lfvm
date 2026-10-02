@@ -170,6 +170,8 @@ export type ChangeSet = {
 	directory_count: number,
 	/**  有可保存的变化（尚无版本时总为 true，允许保存空文件夹）。 */
 	has_changes: boolean,
+	/**  项目规模超出已测试范围（LFVM-P-13），界面提示“操作可能较慢”。 */
+	over_scale: boolean,
 };
 
 export type ClearItem = {
@@ -733,6 +735,8 @@ export type TimeMap = {
 	schemes: MapScheme[],
 	default_head: string | null,
 	active_scheme_id: string | null,
+	/**  版本数超出已测试范围（数据集 D4：500 个版本节点，LFVM-P-13）。 */
+	over_scale: boolean,
 };
 
 export type Trail = {

@@ -300,7 +300,8 @@ impl Core {
             None => None,
         };
         let baseline = baseline_id(&db, &row)?.map(|v| version_brief(&db, &v)).transpose()?;
-        let version_count = db.query_row("SELECT count(*) FROM versions WHERE project_id = ?1", [project_id], |r| r.get(0))?;
+        let version_count =
+            db.query_row("SELECT count(*) FROM versions WHERE project_id = ?1", [project_id], |r| r.get(0))?;
         Ok(ProjectOverview { project: row.summary(), active_scheme, baseline, version_count })
     }
 
@@ -407,8 +408,11 @@ impl Core {
 
         let policy = lfvm_platform::default_case_policy();
         if lfvm_platform::is_filesystem_root(&root) {
-            return Err(CoreError::new(ErrorCode::ProtectedDirectory, "不能把整个磁盘作为项目，请选择其中的一个文件夹")
-                .with_path(&root));
+            return Err(CoreError::new(
+                ErrorCode::ProtectedDirectory,
+                "不能把整个磁盘作为项目，请选择其中的一个文件夹",
+            )
+            .with_path(&root));
         }
         for sys in lfvm_platform::protected_dirs() {
             let sys = paths::canonical(&sys).unwrap_or(sys);
@@ -417,11 +421,8 @@ impl Core {
             }
         }
         if paths::same_or_nested(&root, self.data_dir(), policy) {
-            return Err(CoreError::new(
-                ErrorCode::DirectoryOverlap,
-                "所选文件夹与本软件的历史存储位置相同或相互包含",
-            )
-            .with_path(&root));
+            return Err(CoreError::new(ErrorCode::DirectoryOverlap, "所选文件夹与本软件的历史存储位置相同或相互包含")
+                .with_path(&root));
         }
         for p in self.list_projects()? {
             if paths::same_or_nested(&root, Path::new(&p.root_path), policy) {
@@ -523,14 +524,8 @@ mod tests {
         let err = e.core.check_new_project(e.core.data_dir()).unwrap_err();
         assert_eq!(err.code, ErrorCode::DirectoryOverlap);
         assert_eq!(e.core.check_new_project(Path::new("/")).unwrap_err().code, ErrorCode::ProtectedDirectory);
-        assert_eq!(
-            e.core.check_new_project(&e.work.join("nope")).unwrap_err().code,
-            ErrorCode::NotFound
-        );
-        assert_eq!(
-            e.core.check_new_project(&e.work.join("a.txt")).unwrap_err().code,
-            ErrorCode::InvalidInput
-        );
+        assert_eq!(e.core.check_new_project(&e.work.join("nope")).unwrap_err().code, ErrorCode::NotFound);
+        assert_eq!(e.core.check_new_project(&e.work.join("a.txt")).unwrap_err().code, ErrorCode::InvalidInput);
     }
 
     #[test]

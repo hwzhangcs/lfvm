@@ -44,7 +44,12 @@ impl Env {
     fn save(&self) -> String {
         self.core
             .save_version(
-                &SaveRequest { project_id: self.pid.clone(), request_id: new_id(), name: String::new(), note: String::new() },
+                &SaveRequest {
+                    project_id: self.pid.clone(),
+                    request_id: new_id(),
+                    name: String::new(),
+                    note: String::new(),
+                },
                 &NoProgress,
             )
             .unwrap()
@@ -72,7 +77,12 @@ impl Env {
     }
     fn exclude_dir(&self, p: &str) {
         let mut rules: Vec<_> = self.core.exclusion_rules(&self.pid).unwrap().into_iter().map(|v| v.rule).collect();
-        rules.push(ExclusionRule { relative_path: p.into(), entry_type: RuleType::Directory, is_system_default: false, enabled: true });
+        rules.push(ExclusionRule {
+            relative_path: p.into(),
+            entry_type: RuleType::Directory,
+            is_system_default: false,
+            enabled: true,
+        });
         self.core.save_exclusion_rules(&self.pid, &rules).unwrap();
     }
     fn incomplete(&self) -> bool {
@@ -186,9 +196,15 @@ fn structure_conflict_aborts_before_writing() {
     e.save();
     let plan = e.core.plan_restore(&e.pid, &v1, &NoProgress).unwrap();
     assert_eq!(plan.conflicts.len(), 1);
-    let r = e.core
+    let r = e
+        .core
         .restore_version(
-            &WorkspaceOpRequest { project_id: e.pid.clone(), request_id: new_id(), version_id: v1, fingerprint: plan.fingerprint },
+            &WorkspaceOpRequest {
+                project_id: e.pid.clone(),
+                request_id: new_id(),
+                version_id: v1,
+                fingerprint: plan.fingerprint,
+            },
             &NoProgress,
         )
         .unwrap();
@@ -264,8 +280,12 @@ fn incomplete_then_retry() {
     assert!(e.incomplete());
 
     // 处置前不能保存
-    let err = e.core
-        .save_version(&SaveRequest { project_id: e.pid.clone(), request_id: new_id(), name: String::new(), note: String::new() }, &NoProgress)
+    let err = e
+        .core
+        .save_version(
+            &SaveRequest { project_id: e.pid.clone(), request_id: new_id(), name: String::new(), note: String::new() },
+            &NoProgress,
+        )
         .unwrap_err();
     assert_eq!(err.code, ErrorCode::IncompleteOperation);
     // 但可以从安全备份找回单个文件
@@ -320,7 +340,12 @@ fn cancel_during_writing_and_duplicate_request() {
     assert!(!e.incomplete());
 
     let plan = e.core.plan_restore(&e.pid, &v1, &NoProgress).unwrap();
-    let req = WorkspaceOpRequest { project_id: e.pid.clone(), request_id: "same".into(), version_id: v1.clone(), fingerprint: plan.fingerprint };
+    let req = WorkspaceOpRequest {
+        project_id: e.pid.clone(),
+        request_id: "same".into(),
+        version_id: v1.clone(),
+        fingerprint: plan.fingerprint,
+    };
     let a = e.core.restore_version(&req, &NoProgress).unwrap();
     let b = e.core.restore_version(&req, &NoProgress).unwrap();
     assert_eq!(a.operation_id, b.operation_id);
@@ -336,9 +361,15 @@ fn stale_confirmation_is_rejected() {
     e.write("a.txt", "2");
     let plan = e.core.plan_restore(&e.pid, &v1, &NoProgress).unwrap();
     e.write("new.txt", "appeared");
-    let r = e.core
+    let r = e
+        .core
         .restore_version(
-            &WorkspaceOpRequest { project_id: e.pid.clone(), request_id: new_id(), version_id: v1, fingerprint: plan.fingerprint },
+            &WorkspaceOpRequest {
+                project_id: e.pid.clone(),
+                request_id: new_id(),
+                version_id: v1,
+                fingerprint: plan.fingerprint,
+            },
             &NoProgress,
         )
         .unwrap();
@@ -358,7 +389,14 @@ fn crash_during_execution_is_recovered_as_incomplete() {
         let db = e.core.db();
         let id = insert_op(
             &db,
-            &NewOp { project_id: &e.pid, request_id: "crash", op_type: OpType::Restore, target_ref: "{}".into(), resolved_version_id: Some(&v1), retry_of: None },
+            &NewOp {
+                project_id: &e.pid,
+                request_id: "crash",
+                op_type: OpType::Restore,
+                target_ref: "{}".into(),
+                resolved_version_id: Some(&v1),
+                retry_of: None,
+            },
         )
         .unwrap()
         .unwrap();
@@ -389,7 +427,13 @@ fn crash_during_execution_is_recovered_as_incomplete() {
 // ───────────────────────── 单文件恢复与找回 ─────────────────────────
 
 fn file_req(e: &Env, source: SourceRef, path: &str, token: Option<String>) -> FileRestoreRequest {
-    FileRestoreRequest { project_id: e.pid.clone(), request_id: new_id(), source, path: path.into(), confirm_token: token }
+    FileRestoreRequest {
+        project_id: e.pid.clone(),
+        request_id: new_id(),
+        source,
+        path: path.into(),
+        confirm_token: token,
+    }
 }
 
 /// AC-0015、AC-0020：原位恢复需要确认替换；被替换的原文件可从安全备份找回。
@@ -403,11 +447,19 @@ fn single_file_restore_with_backup_and_retrieve() {
 
     let check = e.core.check_file_restore(&e.pid, &src, "doc/报告.docx", &FileTarget::Original).unwrap();
     assert!(check.exists && !check.excluded);
-    let err = e.core.restore_file(&file_req(&e, src.clone(), "doc/报告.docx", None), &FileTarget::Original, &NoProgress).unwrap_err();
+    let err = e
+        .core
+        .restore_file(&file_req(&e, src.clone(), "doc/报告.docx", None), &FileTarget::Original, &NoProgress)
+        .unwrap_err();
     assert_eq!(err.code, ErrorCode::NeedsConfirmation);
 
-    let r = e.core
-        .restore_file(&file_req(&e, src.clone(), "doc/报告.docx", check.confirm_token), &FileTarget::Original, &NoProgress)
+    let r = e
+        .core
+        .restore_file(
+            &file_req(&e, src.clone(), "doc/报告.docx", check.confirm_token),
+            &FileTarget::Original,
+            &NoProgress,
+        )
         .unwrap();
     assert_eq!(r.status, OpStatus::Succeeded, "{r:?}");
     assert_eq!(e.read("doc/报告.docx").as_deref(), Some("v1"));
@@ -418,7 +470,8 @@ fn single_file_restore_with_backup_and_retrieve() {
     // 从安全备份找回刚被替换的版本
     let bsrc = SourceRef::Backup { backup_id: backup };
     let check = e.core.check_file_restore(&e.pid, &bsrc, "doc/报告.docx", &FileTarget::Original).unwrap();
-    let r = e.core
+    let r = e
+        .core
         .restore_file(&file_req(&e, bsrc, "doc/报告.docx", check.confirm_token), &FileTarget::Original, &NoProgress)
         .unwrap();
     assert_eq!(r.status, OpStatus::Succeeded);
@@ -436,7 +489,10 @@ fn single_file_changed_after_confirmation() {
     let check = e.core.check_file_restore(&e.pid, &src, "a.txt", &FileTarget::Original).unwrap();
     std::thread::sleep(std::time::Duration::from_millis(20));
     e.write("a.txt", "v3!");
-    let err = e.core.restore_file(&file_req(&e, src, "a.txt", check.confirm_token), &FileTarget::Original, &NoProgress).unwrap_err();
+    let err = e
+        .core
+        .restore_file(&file_req(&e, src, "a.txt", check.confirm_token), &FileTarget::Original, &NoProgress)
+        .unwrap_err();
     assert_eq!(err.code, ErrorCode::ChangedExternally);
     assert_eq!(e.read("a.txt").as_deref(), Some("v3!"));
 }
@@ -451,13 +507,18 @@ fn single_file_replace_failure() {
     let src = SourceRef::Version { version_id: v1 };
     let check = e.core.check_file_restore(&e.pid, &src, "a.txt", &FileTarget::Original).unwrap();
     failpoint::arm("replace", 0, ErrorCode::FileInUse);
-    let r = e.core.restore_file(&file_req(&e, src, "a.txt", check.confirm_token), &FileTarget::Original, &NoProgress).unwrap();
+    let r = e
+        .core
+        .restore_file(&file_req(&e, src, "a.txt", check.confirm_token), &FileTarget::Original, &NoProgress)
+        .unwrap();
     assert_eq!(r.status, OpStatus::Failed);
     assert_eq!(e.read("a.txt").as_deref(), Some("v2"));
     let files = e.core.source_files(&e.pid, &SourceRef::Backup { backup_id: r.backup_id.unwrap() }).unwrap();
     assert_eq!(files[0].path, "a.txt");
     // 不留下临时文件
-    assert!(std::fs::read_dir(&e.work).unwrap().all(|f| !f.unwrap().file_name().to_string_lossy().starts_with(".lfvm~")));
+    assert!(
+        std::fs::read_dir(&e.work).unwrap().all(|f| !f.unwrap().file_name().to_string_lossy().starts_with(".lfvm~"))
+    );
 }
 
 /// AC-0015：被排除路径不能原位覆盖，但可以另存；另存覆盖已有文件同样先备份，可按原位置找回。
@@ -470,7 +531,15 @@ fn excluded_original_and_save_as() {
     let src = SourceRef::Version { version_id: v1 };
     let check = e.core.check_file_restore(&e.pid, &src, "cache/x.txt", &FileTarget::Original).unwrap();
     assert!(check.excluded);
-    assert!(e.core.restore_file(&file_req(&e, src.clone(), "cache/x.txt", check.confirm_token), &FileTarget::Original, &NoProgress).is_err());
+    assert!(
+        e.core
+            .restore_file(
+                &file_req(&e, src.clone(), "cache/x.txt", check.confirm_token),
+                &FileTarget::Original,
+                &NoProgress
+            )
+            .is_err()
+    );
 
     let to = FileTarget::SaveAs(e.outside.clone());
     let r = e.core.restore_file(&file_req(&e, src.clone(), "cache/x.txt", None), &to, &NoProgress).unwrap();
@@ -494,8 +563,14 @@ fn save_as_rejects_history_store() {
     let e = env();
     e.write("a.txt", "v1");
     let v1 = e.save();
-    let err = e.core
-        .check_file_restore(&e.pid, &SourceRef::Version { version_id: v1 }, "a.txt", &FileTarget::SaveAs(e.core.data_dir().to_path_buf()))
+    let err = e
+        .core
+        .check_file_restore(
+            &e.pid,
+            &SourceRef::Version { version_id: v1 },
+            "a.txt",
+            &FileTarget::SaveAs(e.core.data_dir().to_path_buf()),
+        )
         .unwrap_err();
     assert_eq!(err.code, ErrorCode::DirectoryOverlap);
 }

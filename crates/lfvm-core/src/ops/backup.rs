@@ -56,11 +56,8 @@ impl Core {
             .iter()
             .filter(|i| matches!(i.action, Action::Replace | Action::Delete) && i.entry_type == EntryType::File)
             .collect();
-        let dirs: Vec<&PlanItem> = req
-            .items
-            .iter()
-            .filter(|i| i.action == Action::Delete && i.entry_type == EntryType::Directory)
-            .collect();
+        let dirs: Vec<&PlanItem> =
+            req.items.iter().filter(|i| i.action == Action::Delete && i.entry_type == EntryType::Directory).collect();
         if files.is_empty() && dirs.is_empty() {
             return Ok(None);
         }
@@ -91,10 +88,7 @@ impl Core {
         let mut created = Vec::new();
         let result = self.fill_backup(req, &backup_id, &files, &dirs, &store, &mut created, progress);
         if let Err(e) = &result {
-            let _ = self.db().execute(
-                "UPDATE safety_backups SET status = 'failed' WHERE backup_id = ?1",
-                [&backup_id],
-            );
+            let _ = self.db().execute("UPDATE safety_backups SET status = 'failed' WHERE backup_id = ?1", [&backup_id]);
             let db = self.db();
             for h in &created {
                 let known: bool = db
