@@ -8,7 +8,10 @@ use crate::error::{CoreError, CoreResult, ErrorCode};
 
 /// 按顺序执行的迁移脚本。`PRAGMA user_version` 记录已执行到第几个。
 /// 已发布的脚本不得修改，结构变化只能追加新脚本。
-const MIGRATIONS: &[&str] = &[include_str!("../../migrations/0001_init.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("../../migrations/0001_init.sql"),
+    include_str!("../../migrations/0002_backup_external_root.sql"),
+];
 
 pub fn open(path: &Path) -> CoreResult<Connection> {
     let conn = Connection::open(path).map_err(|e| CoreError::from(e).with_path(path))?;

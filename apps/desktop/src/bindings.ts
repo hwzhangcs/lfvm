@@ -10,12 +10,12 @@ export const commands = {
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
 	listProjects: () => __TAURI_INVOKE<ProjectSummary[]>("list_projects"),
 	/**  弹出系统的“选择文件夹”对话框。用户取消时返回 null。 */
-	pickFolder: () => __TAURI_INVOKE<{
+	pickFolder: (purpose: FolderPurpose) => __TAURI_INVOKE<{
 	/**  一次性令牌，加入项目时交回。 */
 	token: string,
 	/**  仅用于显示。 */
 	path: string,
-} | null>("pick_folder"),
+} | null>("pick_folder", { purpose }),
 	checkAddProject: (token: string) => __TAURI_INVOKE<AddCheck>("check_add_project", { token }),
 	/**  加入项目。`associate_previous` 为用户选择关联的原历史项目 ID。 */
 	addProject: (token: string, associatePrevious: string | null) => __TAURI_INVOKE<ProjectSummary>("add_project", { token, associatePrevious }),
@@ -38,6 +38,30 @@ export const commands = {
 	previewFile: (projectId: string, source: SourceRef, path: string) => __TAURI_INVOKE<FilePreview>("preview_file", { projectId, source, path }),
 	compareVersions: (projectId: string, versionA: string, versionB: string, scope: string | null) => __TAURI_INVOKE<CompareResult>("compare_versions", { projectId, versionA, versionB, scope }),
 	diffFile: (projectId: string, versionA: string, versionB: string, path: string) => __TAURI_INVOKE<FileDiff>("diff_file", { projectId, versionA, versionB, path }),
+	checkFileRestore: (projectId: string, source: SourceRef, path: string, target: FileTargetArg) => __TAURI_INVOKE<FileRestoreCheck>("check_file_restore", { projectId, source, path, target }),
+	restoreFile: (request: FileRestoreRequest, target: FileTargetArg, taskId: string, onProgress: Channel<ProgressEvent>) => __TAURI_INVOKE<OperationResult>("restore_file", { request, target, taskId, onProgress }),
+	planRestore: (projectId: string, versionId: string, taskId: string, onProgress: Channel<ProgressEvent>) => __TAURI_INVOKE<ImpactPlan>("plan_restore", { projectId, versionId, taskId, onProgress }),
+	restoreVersion: (request: WorkspaceOpRequest, taskId: string, onProgress: Channel<ProgressEvent>) => __TAURI_INVOKE<OperationResult>("restore_version", { request, taskId, onProgress }),
+	planRetry: (projectId: string, operationId: string, taskId: string, onProgress: Channel<ProgressEvent>) => __TAURI_INVOKE<ImpactPlan>("plan_retry", { projectId, operationId, taskId, onProgress }),
+	retryOperation: (projectId: string, requestId: string, operationId: string, fingerprint: string, taskId: string, onProgress: Channel<ProgressEvent>) => __TAURI_INVOKE<OperationResult>("retry_operation", { projectId, requestId, operationId, fingerprint, taskId, onProgress }),
+	resolveIncomplete: (projectId: string, operationId: string) => __TAURI_INVOKE<null>("resolve_incomplete", { projectId, operationId }),
+	listOperations: (projectId: string) => __TAURI_INVOKE<OperationSummary[]>("list_operations", { projectId }),
+	operationDetail: (projectId: string, operationId: string) => __TAURI_INVOKE<OperationDetail>("operation_detail", { projectId, operationId }),
+	openIncomplete: (projectId: string) => __TAURI_INVOKE<{
+	operation_id: string,
+	op_type: OpType,
+	status: OpStatus,
+	/**  显示用的操作对象，如“版本 V5”“方案“A””“文件 报告.docx”。 */
+	target_label: string,
+	resolved_version_id: string | null,
+	retry_of: string | null,
+	/**  未完成操作是否已由用户处置。 */
+	resolved: boolean,
+	created_at: number,
+	finished_at: number | null,
+	message: string,
+	backup: BackupSummary | null,
+} | null>("open_incomplete", { projectId }),
 };
 
 /** Events */
@@ -46,6 +70,10 @@ export const events = {
 };
 
 /* Types */
+export type Action = "create" | "replace" | "delete" | 
+/**  因排除而保留不动。 */
+"keep";
+
 /**  加入前的检查结果。 */
 export type AddCheck = {
 	path: string,
@@ -60,6 +88,21 @@ export type AppInfo = {
 	data_dir: string,
 	/**  windows / macos / linux */
 	os: string,
+};
+
+export type BackupStatus = "creating" | "ready" | "failed" | "cleared";
+
+export type BackupSummary = {
+	backup_id: string,
+	operation_id: string,
+	reason: string,
+	status: BackupStatus,
+	file_count: number,
+	created_at: number,
+	/**  备份文件缺失或校验失败时为 false（显示“不可恢复”）。 */
+	recoverable: boolean,
+	/**  另存覆盖项目外文件时的备份：路径相对于这个文件夹。 */
+	external_root: string | null,
 };
 
 export type ChangeCounts = {
@@ -194,7 +237,11 @@ export type ErrorCode =
 /**  没有需要保存的变化。 */
 "NOTHING_TO_SAVE" | 
 /**  版本或安全备份的内容已清理。 */
-"CONTENT_CLEARED";
+"CONTENT_CLEARED" | 
+/**  保留排除内容与目标目录结构无法同时成立（规则 R-05）。 */
+"STRUCTURE_CONFLICT" | 
+/**  目标位置已有文件，需要用户确认替换。 */
+"NEEDS_CONFIRMATION";
 
 export type ExclusionRule = {
 	relative_path: string,
@@ -218,10 +265,38 @@ export type FilePreview = {
 	content: PreviewContent,
 };
 
+/**  恢复前的检查结果，供界面显示确认信息。 */
+export type FileRestoreCheck = {
+	target_path: string,
+	/**  目标位置已有同名文件（需要用户确认替换）。 */
+	exists: boolean,
+	existing_size: number | null,
+	existing_modified_at: number | null,
+	/**  确认替换时交回；替换前核对，若不一致说明目标在确认后被修改。 */
+	confirm_token: string | null,
+	/**  原位置属于当前排除项：不允许原位覆盖，只能另存（规则 R-05）。 */
+	excluded: boolean,
+};
+
+export type FileRestoreRequest = {
+	project_id: string,
+	request_id: string,
+	source: SourceRef,
+	path: string,
+	/**  目标已有文件时必须给出（来自 [`FileRestoreCheck::confirm_token`]）。 */
+	confirm_token: string | null,
+};
+
+/**  单文件恢复的目标：原位置，或另存到用户刚选择的文件夹（令牌来自 pick_folder）。 */
+export type FileTargetArg = { kind: "original" } | { kind: "save_as"; token: string };
+
 /**  用户把文件或文件夹拖入窗口。拖入的不是文件夹时 `folder` 为 null。 */
 export type FolderDropped = {
 	folder: PickedFolder | null,
 };
+
+/**  选择文件夹的用途，决定对话框标题。 */
+export type FolderPurpose = "add_project" | "save_to" | "expand_to" | "export_to";
 
 /**  历史版本中的一个文件或文件夹。 */
 export type HistoryEntry = {
@@ -248,6 +323,24 @@ export type ImageSide = {
 	info: ImageInfo | null,
 	reason: string | null,
 };
+
+/**  影响清单（供用户确认）。 */
+export type ImpactPlan = {
+	target: VersionBrief,
+	items: PlanItem[],
+	counts: PlanCounts,
+	/**  排除冲突、链接等问题；存在时不能执行。 */
+	conflicts: ScanProblem[],
+	/**  用户确认时交回，用于确认文件夹在确认后没有再变化。 */
+	fingerprint: string,
+};
+
+export type ItemFailure = {
+	path: string,
+	message: string,
+};
+
+export type ItemState = "pending" | "applying" | "done" | "failed" | "skipped";
 
 export type LineTag = "equal" | "insert" | "delete";
 
@@ -282,12 +375,84 @@ export type MapScheme = {
 	cleared: boolean,
 };
 
+/**  操作状态（SRS 6.1.1）：“失败”表示工作区尚未被改动；只要已有文件被改动或无法确定，就是“未完成”。 */
+export type OpStatus = "running" | "succeeded" | "cancelled" | "failed" | "incomplete";
+
+export type OpType = "save" | "restore" | "switch" | "expand" | "export" | "clear";
+
+export type OperationDetail = {
+	summary: OperationSummary,
+	items: OperationItemView[],
+};
+
+export type OperationItemView = {
+	path: string,
+	action: Action,
+	state: ItemState,
+	backed_up: boolean,
+	error: string | null,
+};
+
+/**  一次写操作的结果（表 4-11 OperationResult）。 */
+export type OperationResult = {
+	operation_id: string,
+	status: OpStatus,
+	message: string,
+	/**  已完成、失败、未处理的路径。 */
+	completed: string[],
+	failed: ItemFailure[],
+	pending: string[],
+	/**  本次创建的安全备份；没有现存文件被覆盖或删除时为 null（“无需备份”）。 */
+	backup_id: string | null,
+};
+
+/**  操作记录列表中的一项（SRS 3.3.3.2）。 */
+export type OperationSummary = {
+	operation_id: string,
+	op_type: OpType,
+	status: OpStatus,
+	/**  显示用的操作对象，如“版本 V5”“方案“A””“文件 报告.docx”。 */
+	target_label: string,
+	resolved_version_id: string | null,
+	retry_of: string | null,
+	/**  未完成操作是否已由用户处置。 */
+	resolved: boolean,
+	created_at: number,
+	finished_at: number | null,
+	message: string,
+	backup: BackupSummary | null,
+};
+
 /**  用户通过对话框或拖放选中的文件夹。 */
 export type PickedFolder = {
 	/**  一次性令牌，加入项目时交回。 */
 	token: string,
 	/**  仅用于显示。 */
 	path: string,
+};
+
+export type PlanCounts = {
+	create: number,
+	replace: number,
+	delete: number,
+	keep: number,
+	type_change: number,
+	/**  需要备份的现存文件数（0 表示“无需备份”）。 */
+	backup_files: number,
+};
+
+export type PlanItem = {
+	path: string,
+	action: Action,
+	entry_type: EntryType,
+	/**  现有内容的摘要（替换、删除文件时）。 */
+	before_hash: string | null,
+	/**  目标内容的摘要（新建、替换文件时）。 */
+	after_hash: string | null,
+	before_size: number | null,
+	after_size: number | null,
+	/**  属于“文件↔文件夹”类型变化。 */
+	type_change: boolean,
 };
 
 export type PreviewContent = { kind: "text"; text: string; encoding: string } | 
@@ -388,7 +553,11 @@ export type Stage =
 /**  再次核对工作区 */
 "verifying" | 
 /**  登记到数据库 */
-"committing";
+"committing" | 
+/**  创建安全备份 */
+"backing_up" | 
+/**  写入项目文件夹 */
+"writing";
 
 export type TimeMap = {
 	/**  按保存先后（序号）排列。 */
@@ -406,6 +575,13 @@ export type VersionBrief = {
 	name: string,
 	note: string,
 	created_at: number,
+};
+
+export type WorkspaceOpRequest = {
+	project_id: string,
+	request_id: string,
+	version_id: string,
+	fingerprint: string,
 };
 
 /* Tauri Specta runtime */

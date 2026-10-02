@@ -1,4 +1,11 @@
-import { AimOutlined, CompressOutlined, DiffOutlined, FolderOpenOutlined, SearchOutlined } from "@ant-design/icons";
+import {
+  AimOutlined,
+  CompressOutlined,
+  DiffOutlined,
+  FolderOpenOutlined,
+  RollbackOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
@@ -19,6 +26,7 @@ import {
 import type { Dayjs } from "dayjs";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { api, errorMessage, inDesktop, type MapNode, queryKeys, type TimeMap } from "../api";
+import { ImpactDialog } from "../components/ImpactDialog";
 import {
   COL,
   layoutMap,
@@ -55,6 +63,7 @@ export function TimeMapPage() {
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [keyword, setKeyword] = useState("");
   const [cursor, setCursor] = useState(0);
+  const [restoring, setRestoring] = useState<MapNode | null>(null);
 
   const layout = useMemo(
     () =>
@@ -193,6 +202,7 @@ export function TimeMapPage() {
               }
               onSetA={() => setPair((p) => ({ ...p, a: node.version_id }))}
               onSetB={() => setPair((p) => ({ ...p, b: node.version_id }))}
+              onRestore={() => setRestoring(node)}
             />
           ) : (
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -220,6 +230,22 @@ export function TimeMapPage() {
           </Flex>
         </Card>
       </Flex>
+      {restoring && (
+        <ImpactDialog
+          open
+          projectId={projectId}
+          title={t.restoreVersion.title(versionLabel(restoring.seq))}
+          plan={(task, ch) => api.planRestore(projectId, restoring.version_id, task, ch)}
+          run={(fingerprint, requestId, task, ch) =>
+            api.restoreVersion(
+              { project_id: projectId, request_id: requestId, version_id: restoring.version_id, fingerprint },
+              task,
+              ch,
+            )
+          }
+          onClose={() => setRestoring(null)}
+        />
+      )}
     </Flex>
   );
 }
@@ -230,12 +256,14 @@ function NodeDetails({
   onFiles,
   onSetA,
   onSetB,
+  onRestore,
 }: {
   map: TimeMap;
   node: MapNode;
   onFiles: () => void;
   onSetA: () => void;
   onSetB: () => void;
+  onRestore: () => void;
 }) {
   const route = node.origin_scheme_name
     ? `${t.map.filterScheme(node.origin_scheme_name)}${map.schemes.find((s) => s.scheme_id === node.origin_scheme_id)?.cleared ? t.map.clearedScheme : ""}`
@@ -258,6 +286,9 @@ function NodeDetails({
       <Flex vertical gap={8}>
         <Button icon={<FolderOpenOutlined />} disabled={node.cleared} onClick={onFiles}>
           {t.node.viewFiles}
+        </Button>
+        <Button icon={<RollbackOutlined />} disabled={node.cleared} onClick={onRestore}>
+          {t.restoreVersion.button}
         </Button>
         <Space.Compact block>
           <Button style={{ width: "50%" }} disabled={node.cleared} onClick={onSetA}>

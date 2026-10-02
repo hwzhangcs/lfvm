@@ -65,6 +65,16 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::preview_file,
             commands::compare_versions,
             commands::diff_file,
+            commands::check_file_restore,
+            commands::restore_file,
+            commands::plan_restore,
+            commands::restore_version,
+            commands::plan_retry,
+            commands::retry_operation,
+            commands::resolve_incomplete,
+            commands::list_operations,
+            commands::operation_detail,
+            commands::open_incomplete,
         ])
         .events(collect_events![FolderDropped])
 }

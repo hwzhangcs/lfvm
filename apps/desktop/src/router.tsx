@@ -4,6 +4,7 @@
  */
 import { createHashHistory, createRootRoute, createRoute, createRouter, Outlet } from "@tanstack/react-router";
 import { ProjectLayout } from "./layouts/ProjectLayout";
+import { BackupsPage } from "./pages/BackupsPage";
 import { ComparePage } from "./pages/ComparePage";
 import { FeaturePlaceholder } from "./pages/FeaturePlaceholder";
 import { FileTreePage } from "./pages/FileTreePage";
@@ -63,7 +64,10 @@ const schemesRoute = createRoute({
 const backupsRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: "backups",
-  component: () => <FeaturePlaceholder page="backups" />,
+  validateSearch: (s: Record<string, unknown>): { op?: string } => ({
+    op: typeof s.op === "string" && s.op ? s.op : undefined,
+  }),
+  component: BackupsPage,
 });
 const storageRoute = createRoute({
   getParentRoute: () => projectRoute,

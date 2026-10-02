@@ -21,6 +21,10 @@ pub enum Stage {
     Verifying,
     /// 登记到数据库
     Committing,
+    /// 创建安全备份
+    BackingUp,
+    /// 写入项目文件夹
+    Writing,
 }
 
 /// 由调用方实现：桌面外壳把进度通过 Channel 推给界面；测试中用 [`NoProgress`]。

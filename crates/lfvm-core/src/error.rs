@@ -46,6 +46,10 @@ pub enum ErrorCode {
     NothingToSave,
     /// 版本或安全备份的内容已清理。
     ContentCleared,
+    /// 保留排除内容与目标目录结构无法同时成立（规则 R-05）。
+    StructureConflict,
+    /// 目标位置已有文件，需要用户确认替换。
+    NeedsConfirmation,
 }
 
 #[derive(Debug, Clone, thiserror::Error, Serialize)]

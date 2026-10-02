@@ -6,8 +6,10 @@ import { Channel, convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { commands, events, type ProgressEvent } from "../bindings";
 
 export type {
+  Action,
   AddCheck,
   AppInfo,
+  BackupSummary,
   ChangeItem,
   ChangeKind,
   ChangeSet,
@@ -21,11 +23,21 @@ export type {
   ExclusionRule,
   FileDiff,
   FilePreview,
+  FileRestoreCheck,
+  FileTargetArg,
   HistoryEntry,
   ImageSide,
+  ImpactPlan,
+  ItemState,
   MapNode,
   MapScheme,
+  OperationDetail,
+  OperationResult,
+  OperationSummary,
+  OpStatus,
+  OpType,
   PickedFolder,
+  PlanItem,
   PreviewContent,
   ProgressEvent,
   ProjectOverview,
@@ -59,7 +71,17 @@ export const queryKeys = {
   compare: (projectId: string, a: string, b: string, scope: string | null) =>
     ["compare", projectId, a, b, scope] as const,
   diff: (projectId: string, a: string, b: string, path: string) => ["diff", projectId, a, b, path] as const,
+  operations: (projectId: string) => ["operations", projectId] as const,
+  operation: (projectId: string, operationId: string) => ["operation", projectId, operationId] as const,
+  incomplete: (projectId: string) => ["incomplete", projectId] as const,
 };
+
+/** 改写工作区或历史的操作完成后，刷新该项目的全部相关数据。 */
+export function invalidateProject(qc: import("@tanstack/react-query").QueryClient, projectId: string) {
+  return qc.invalidateQueries({
+    predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[1] === projectId,
+  });
+}
 
 /** 历史图片的地址：由预览协议提供，只能取到本项目已登记的 PNG/JPEG 内容（LFVM-Q-07）。 */
 export function imageUrl(projectId: string, hash: string): string {

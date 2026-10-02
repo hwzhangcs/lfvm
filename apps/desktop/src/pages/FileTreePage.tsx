@@ -2,7 +2,9 @@ import { ArrowLeftOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { Alert, Button, Flex, Typography } from "antd";
-import { api, inDesktop, queryKeys } from "../api";
+import { useState } from "react";
+import { api, type HistoryEntry, inDesktop, queryKeys } from "../api";
+import { RestoreFileDialog } from "../components/RestoreFileDialog";
 import { HistoryBrowser } from "../features/history/HistoryBrowser";
 import { t } from "../locales/zh-CN";
 import { formatTime, versionLabel } from "../utils/format";
@@ -16,6 +18,7 @@ export function FileTreePage() {
     enabled: inDesktop,
   });
   const node = map.data?.nodes.find((n) => n.version_id === versionId);
+  const [restoring, setRestoring] = useState<HistoryEntry | null>(null);
 
   return (
     <Flex vertical gap={12}>
@@ -33,7 +36,24 @@ export function FileTreePage() {
         )}
       </Flex>
       <Alert type="info" showIcon title={t.tree.readOnly} />
-      <HistoryBrowser projectId={projectId} source={{ kind: "version", version_id: versionId }} />
+      <HistoryBrowser
+        projectId={projectId}
+        source={{ kind: "version", version_id: versionId }}
+        actions={(entry) => (
+          <Button type="primary" onClick={() => setRestoring(entry)}>
+            {t.restoreFile.button}
+          </Button>
+        )}
+      />
+      {restoring && (
+        <RestoreFileDialog
+          open
+          projectId={projectId}
+          source={{ kind: "version", version_id: versionId }}
+          path={restoring.path}
+          onClose={() => setRestoring(null)}
+        />
+      )}
     </Flex>
   );
 }

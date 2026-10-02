@@ -284,6 +284,7 @@ impl Core {
             .with_path(&row.root));
         }
         self.recover_interrupted_saves(project_id)?;
+        self.recover_interrupted_ops(project_id)?;
         self.overview(project_id)
     }
 

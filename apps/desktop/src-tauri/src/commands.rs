@@ -12,6 +12,9 @@ use lfvm_core::compare::{CompareResult, FileDiff};
 use lfvm_core::content::{FilePreview, SourceRef};
 use lfvm_core::exclude::ExclusionRule;
 use lfvm_core::history::{HistoryEntry, TimeMap};
+use lfvm_core::ops::restore::{ImpactPlan, WorkspaceOpRequest};
+use lfvm_core::ops::single::{FileRestoreCheck, FileRestoreRequest, FileTarget};
+use lfvm_core::ops::{OperationDetail, OperationResult, OperationSummary};
 use lfvm_core::project::{AddCheck, DirChild, ProjectOverview, ProjectSummary, RuleView};
 use lfvm_core::version::{SaveRequest, SaveResult};
 use lfvm_core::{Core, CoreError, CoreResult, ErrorCode};
@@ -77,12 +80,32 @@ pub async fn list_projects(state: State<'_, AppState>) -> Result<Vec<ProjectSumm
     blocking(&state, |core| core.list_projects()).await
 }
 
+/// 选择文件夹的用途，决定对话框标题。
+#[derive(Debug, Clone, Copy, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum FolderPurpose {
+    AddProject,
+    SaveTo,
+    ExpandTo,
+    ExportTo,
+}
+
 /// 弹出系统的“选择文件夹”对话框。用户取消时返回 null。
 #[tauri::command]
 #[specta::specta]
-pub async fn pick_folder(app: AppHandle, state: State<'_, AppState>) -> Result<Option<PickedFolder>, CoreError> {
+pub async fn pick_folder(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    purpose: FolderPurpose,
+) -> Result<Option<PickedFolder>, CoreError> {
+    let title = match purpose {
+        FolderPurpose::AddProject => "选择要管理的文件夹",
+        FolderPurpose::SaveTo => "选择另存到的文件夹",
+        FolderPurpose::ExpandTo => "选择展开到的位置",
+        FolderPurpose::ExportTo => "选择导出位置",
+    };
     let picked = tauri::async_runtime::spawn_blocking(move || {
-        app.dialog().file().set_title("选择要管理的文件夹").blocking_pick_folder()
+        app.dialog().file().set_title(title).blocking_pick_folder()
     })
     .await
     .map_err(|e| CoreError::new(ErrorCode::Internal, e.to_string()))?;
@@ -271,4 +294,136 @@ pub async fn diff_file(
     path: String,
 ) -> Result<FileDiff, CoreError> {
     blocking(&state, move |core| core.diff_file(&project_id, &version_a, &version_b, &path)).await
+}
+
+// ───────────────────────── 恢复、安全备份、操作记录 ─────────────────────────
+
+/// 单文件恢复的目标：原位置，或另存到用户刚选择的文件夹（令牌来自 pick_folder）。
+#[derive(Debug, Clone, Deserialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum FileTargetArg {
+    Original,
+    SaveAs { token: String },
+}
+
+fn file_target(state: &AppState, arg: &FileTargetArg) -> CoreResult<FileTarget> {
+    Ok(match arg {
+        FileTargetArg::Original => FileTarget::Original,
+        FileTargetArg::SaveAs { token } => FileTarget::SaveAs(picked_path(state, token)?),
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn check_file_restore(
+    state: State<'_, AppState>,
+    project_id: String,
+    source: SourceRef,
+    path: String,
+    target: FileTargetArg,
+) -> Result<FileRestoreCheck, CoreError> {
+    let target = file_target(&state, &target)?;
+    blocking(&state, move |core| core.check_file_restore(&project_id, &source, &path, &target)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn restore_file(
+    state: State<'_, AppState>,
+    request: FileRestoreRequest,
+    target: FileTargetArg,
+    task_id: String,
+    on_progress: Channel<ProgressEvent>,
+) -> Result<OperationResult, CoreError> {
+    let target = file_target(&state, &target)?;
+    let task = state.tasks.start(&task_id);
+    let progress = ChannelProgress::new(on_progress, task.flag.clone());
+    blocking(&state, move |core| core.restore_file(&request, &target, &progress)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn plan_restore(
+    state: State<'_, AppState>,
+    project_id: String,
+    version_id: String,
+    task_id: String,
+    on_progress: Channel<ProgressEvent>,
+) -> Result<ImpactPlan, CoreError> {
+    let task = state.tasks.start(&task_id);
+    let progress = ChannelProgress::new(on_progress, task.flag.clone());
+    blocking(&state, move |core| core.plan_restore(&project_id, &version_id, &progress)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn restore_version(
+    state: State<'_, AppState>,
+    request: WorkspaceOpRequest,
+    task_id: String,
+    on_progress: Channel<ProgressEvent>,
+) -> Result<OperationResult, CoreError> {
+    let task = state.tasks.start(&task_id);
+    let progress = ChannelProgress::new(on_progress, task.flag.clone());
+    blocking(&state, move |core| core.restore_version(&request, &progress)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn plan_retry(
+    state: State<'_, AppState>,
+    project_id: String,
+    operation_id: String,
+    task_id: String,
+    on_progress: Channel<ProgressEvent>,
+) -> Result<ImpactPlan, CoreError> {
+    let task = state.tasks.start(&task_id);
+    let progress = ChannelProgress::new(on_progress, task.flag.clone());
+    blocking(&state, move |core| core.plan_retry(&project_id, &operation_id, &progress)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+#[allow(clippy::too_many_arguments)]
+pub async fn retry_operation(
+    state: State<'_, AppState>,
+    project_id: String,
+    request_id: String,
+    operation_id: String,
+    fingerprint: String,
+    task_id: String,
+    on_progress: Channel<ProgressEvent>,
+) -> Result<OperationResult, CoreError> {
+    let task = state.tasks.start(&task_id);
+    let progress = ChannelProgress::new(on_progress, task.flag.clone());
+    blocking(&state, move |core| core.retry_operation(&project_id, &request_id, &operation_id, &fingerprint, &progress))
+        .await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn resolve_incomplete(state: State<'_, AppState>, project_id: String, operation_id: String) -> Result<(), CoreError> {
+    blocking(&state, move |core| core.resolve_incomplete(&project_id, &operation_id)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn list_operations(state: State<'_, AppState>, project_id: String) -> Result<Vec<OperationSummary>, CoreError> {
+    blocking(&state, move |core| core.list_operations(&project_id)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn operation_detail(
+    state: State<'_, AppState>,
+    project_id: String,
+    operation_id: String,
+) -> Result<OperationDetail, CoreError> {
+    blocking(&state, move |core| core.operation_detail(&project_id, &operation_id)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn open_incomplete(state: State<'_, AppState>, project_id: String) -> Result<Option<OperationSummary>, CoreError> {
+    blocking(&state, move |core| core.open_incomplete(&project_id)).await
 }

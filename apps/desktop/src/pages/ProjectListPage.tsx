@@ -28,7 +28,7 @@ export function ProjectListPage() {
 
   const pick = async () => {
     try {
-      const folder = await api.pickFolder();
+      const folder = await api.pickFolder("add_project");
       if (folder) await addProject(folder);
     } catch (e) {
       message.error(errorMessage(e));

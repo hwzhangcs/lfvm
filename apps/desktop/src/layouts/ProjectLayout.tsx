@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { Button, Layout, Menu, Result, Spin, Typography, theme } from "antd";
 import { api, errorMessage, inDesktop, queryKeys } from "../api";
+import { IncompleteBanner } from "../components/IncompleteBanner";
 import { t } from "../locales/zh-CN";
 
 const { Sider, Content } = Layout;
@@ -76,6 +77,7 @@ export function ProjectLayout() {
         <Menu mode="inline" selectedKeys={[selected]} items={items} style={{ borderInlineEnd: 0 }} />
       </Sider>
       <Content style={{ overflow: "auto", padding: 24 }}>
+        {project && <IncompleteBanner projectId={projectId} incomplete={project.incomplete} />}
         {overview.isLoading ? <Spin style={{ display: "block", marginTop: 80 }} /> : <Outlet />}
       </Content>
     </Layout>

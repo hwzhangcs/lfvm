@@ -13,6 +13,7 @@ pub mod glob;
 pub mod hash;
 pub mod history;
 pub mod model;
+pub mod ops;
 pub mod paths;
 pub mod progress;
 pub mod project;
