@@ -10,6 +10,7 @@ import { FeaturePlaceholder } from "./pages/FeaturePlaceholder";
 import { FileTreePage } from "./pages/FileTreePage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { ProjectListPage } from "./pages/ProjectListPage";
+import { SchemesPage } from "./pages/SchemesPage";
 import { TimeMapPage } from "./pages/TimeMapPage";
 
 const rootRoute = createRootRoute({ component: Outlet });
@@ -59,7 +60,7 @@ const findRoute = createRoute({
 const schemesRoute = createRoute({
   getParentRoute: () => projectRoute,
   path: "schemes",
-  component: () => <FeaturePlaceholder page="schemes" />,
+  component: SchemesPage,
 });
 const backupsRoute = createRoute({
   getParentRoute: () => projectRoute,

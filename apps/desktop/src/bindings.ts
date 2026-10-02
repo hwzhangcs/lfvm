@@ -62,6 +62,11 @@ export const commands = {
 	message: string,
 	backup: BackupSummary | null,
 } | null>("open_incomplete", { projectId }),
+	listSchemes: (projectId: string) => __TAURI_INVOKE<SchemeList>("list_schemes", { projectId }),
+	createScheme: (projectId: string, versionId: string, name: string) => __TAURI_INVOKE<SchemeInfo>("create_scheme", { projectId, versionId, name }),
+	renameScheme: (projectId: string, schemeId: string, name: string) => __TAURI_INVOKE<null>("rename_scheme", { projectId, schemeId, name }),
+	checkSwitch: (projectId: string, target: SwitchTarget, taskId: string, onProgress: Channel<ProgressEvent>) => __TAURI_INVOKE<SwitchCheck>("check_switch", { projectId, target, taskId, onProgress }),
+	switchScheme: (request: SwitchRequest, taskId: string, onProgress: Channel<ProgressEvent>) => __TAURI_INVOKE<OperationResult>("switch_scheme", { request, taskId, onProgress }),
 };
 
 /** Events */
@@ -241,7 +246,9 @@ export type ErrorCode =
 /**  保留排除内容与目标目录结构无法同时成立（规则 R-05）。 */
 "STRUCTURE_CONFLICT" | 
 /**  目标位置已有文件，需要用户确认替换。 */
-"NEEDS_CONFIRMATION";
+"NEEDS_CONFIRMATION" | 
+/**  切换方案前有尚未保存的变化。 */
+"UNSAVED_CHANGES";
 
 export type ExclusionRule = {
 	relative_path: string,
@@ -539,6 +546,27 @@ export type SchemeBrief = {
 	name: string,
 };
 
+export type SchemeInfo = {
+	scheme_id: string,
+	name: string,
+	base: VersionBrief,
+	head: VersionBrief,
+	created_at: number,
+	/**  是当前活动方案。 */
+	active: boolean,
+	/**  在该方案中保存的版本数。 */
+	version_count: number,
+};
+
+/**  方案列表（含默认历史）。 */
+export type SchemeList = {
+	schemes: SchemeInfo[],
+	/**  默认历史的最新版本；尚无版本时为 null。 */
+	default_head: VersionBrief | null,
+	/**  当前处于默认历史。 */
+	default_active: boolean,
+};
+
 /**  历史文件的来源：某个版本或某个安全备份。 */
 export type SourceRef = { kind: "version"; version_id: string } | { kind: "backup"; backup_id: string };
 
@@ -558,6 +586,25 @@ export type Stage =
 "backing_up" | 
 /**  写入项目文件夹 */
 "writing";
+
+/**  切换前检查（SRS 3.3.4.2 第 1～3 步）。 */
+export type SwitchCheck = {
+	/**  有尚未保存的变化：必须先保存或取消切换。 */
+	unsaved: boolean,
+	/**  没有未保存变化时给出影响清单。 */
+	impact: ImpactPlan | null,
+	target_label: string,
+};
+
+export type SwitchRequest = {
+	project_id: string,
+	request_id: string,
+	target: SwitchTarget,
+	fingerprint: string,
+};
+
+/**  切换目标：某个方案，或默认历史。 */
+export type SwitchTarget = { kind: "scheme"; scheme_id: string } | { kind: "default" };
 
 export type TimeMap = {
 	/**  按保存先后（序号）排列。 */

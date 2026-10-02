@@ -18,6 +18,7 @@ pub mod paths;
 pub mod progress;
 pub mod project;
 pub mod scan;
+pub mod scheme;
 pub mod store;
 pub mod version;
 

@@ -75,6 +75,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::list_operations,
             commands::operation_detail,
             commands::open_incomplete,
+            commands::list_schemes,
+            commands::create_scheme,
+            commands::rename_scheme,
+            commands::check_switch,
+            commands::switch_scheme,
         ])
         .events(collect_events![FolderDropped])
 }

@@ -15,6 +15,7 @@ use lfvm_core::history::{HistoryEntry, TimeMap};
 use lfvm_core::ops::restore::{ImpactPlan, WorkspaceOpRequest};
 use lfvm_core::ops::single::{FileRestoreCheck, FileRestoreRequest, FileTarget};
 use lfvm_core::ops::{OperationDetail, OperationResult, OperationSummary};
+use lfvm_core::scheme::{SchemeInfo, SchemeList, SwitchCheck, SwitchRequest, SwitchTarget};
 use lfvm_core::project::{AddCheck, DirChild, ProjectOverview, ProjectSummary, RuleView};
 use lfvm_core::version::{SaveRequest, SaveResult};
 use lfvm_core::{Core, CoreError, CoreResult, ErrorCode};
@@ -426,4 +427,61 @@ pub async fn operation_detail(
 #[specta::specta]
 pub async fn open_incomplete(state: State<'_, AppState>, project_id: String) -> Result<Option<OperationSummary>, CoreError> {
     blocking(&state, move |core| core.open_incomplete(&project_id)).await
+}
+
+// ───────────────────────── 方案 ─────────────────────────
+
+#[tauri::command]
+#[specta::specta]
+pub async fn list_schemes(state: State<'_, AppState>, project_id: String) -> Result<SchemeList, CoreError> {
+    blocking(&state, move |core| core.list_schemes(&project_id)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_scheme(
+    state: State<'_, AppState>,
+    project_id: String,
+    version_id: String,
+    name: String,
+) -> Result<SchemeInfo, CoreError> {
+    blocking(&state, move |core| core.create_scheme(&project_id, &version_id, &name)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_scheme(
+    state: State<'_, AppState>,
+    project_id: String,
+    scheme_id: String,
+    name: String,
+) -> Result<(), CoreError> {
+    blocking(&state, move |core| core.rename_scheme(&project_id, &scheme_id, &name)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn check_switch(
+    state: State<'_, AppState>,
+    project_id: String,
+    target: SwitchTarget,
+    task_id: String,
+    on_progress: Channel<ProgressEvent>,
+) -> Result<SwitchCheck, CoreError> {
+    let task = state.tasks.start(&task_id);
+    let progress = ChannelProgress::new(on_progress, task.flag.clone());
+    blocking(&state, move |core| core.check_switch(&project_id, &target, &progress)).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn switch_scheme(
+    state: State<'_, AppState>,
+    request: SwitchRequest,
+    task_id: String,
+    on_progress: Channel<ProgressEvent>,
+) -> Result<OperationResult, CoreError> {
+    let task = state.tasks.start(&task_id);
+    let progress = ChannelProgress::new(on_progress, task.flag.clone());
+    blocking(&state, move |core| core.switch_scheme(&request, &progress)).await
 }

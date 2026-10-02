@@ -45,8 +45,12 @@ export type {
   RuleType,
   RuleView,
   SaveResult,
+  SchemeInfo,
+  SchemeList,
   SourceRef,
   Stage,
+  SwitchCheck,
+  SwitchTarget,
   TimeMap,
   VersionBrief,
 } from "../bindings";
@@ -74,6 +78,7 @@ export const queryKeys = {
   operations: (projectId: string) => ["operations", projectId] as const,
   operation: (projectId: string, operationId: string) => ["operation", projectId, operationId] as const,
   incomplete: (projectId: string) => ["incomplete", projectId] as const,
+  schemes: (projectId: string) => ["schemes", projectId] as const,
 };
 
 /** 改写工作区或历史的操作完成后，刷新该项目的全部相关数据。 */

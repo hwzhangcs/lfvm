@@ -50,6 +50,8 @@ pub enum ErrorCode {
     StructureConflict,
     /// 目标位置已有文件，需要用户确认替换。
     NeedsConfirmation,
+    /// 切换方案前有尚未保存的变化。
+    UnsavedChanges,
 }
 
 #[derive(Debug, Clone, thiserror::Error, Serialize)]

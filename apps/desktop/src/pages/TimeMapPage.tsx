@@ -1,5 +1,6 @@
 import {
   AimOutlined,
+  BranchesOutlined,
   CompressOutlined,
   DiffOutlined,
   FolderOpenOutlined,
@@ -27,6 +28,7 @@ import type { Dayjs } from "dayjs";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { api, errorMessage, inDesktop, type MapNode, queryKeys, type TimeMap } from "../api";
 import { ImpactDialog } from "../components/ImpactDialog";
+import { CreateSchemeModal, SwitchFlow } from "../features/schemes/SchemeDialogs";
 import {
   COL,
   layoutMap,
@@ -64,6 +66,8 @@ export function TimeMapPage() {
   const [keyword, setKeyword] = useState("");
   const [cursor, setCursor] = useState(0);
   const [restoring, setRestoring] = useState<MapNode | null>(null);
+  const [branching, setBranching] = useState<MapNode | null>(null);
+  const [switching, setSwitching] = useState<{ id: string; label: string } | null>(null);
 
   const layout = useMemo(
     () =>
@@ -203,6 +207,7 @@ export function TimeMapPage() {
               onSetA={() => setPair((p) => ({ ...p, a: node.version_id }))}
               onSetB={() => setPair((p) => ({ ...p, b: node.version_id }))}
               onRestore={() => setRestoring(node)}
+              onBranch={() => setBranching(node)}
             />
           ) : (
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -230,6 +235,19 @@ export function TimeMapPage() {
           </Flex>
         </Card>
       </Flex>
+      <CreateSchemeModal
+        open={!!branching}
+        projectId={projectId}
+        versionId={branching?.version_id ?? null}
+        onClose={() => setBranching(null)}
+        onSwitch={(s) => setSwitching({ id: s.scheme_id, label: t.map.filterScheme(s.name) })}
+      />
+      <SwitchFlow
+        projectId={projectId}
+        target={switching ? { kind: "scheme", scheme_id: switching.id } : null}
+        label={switching?.label ?? ""}
+        onClose={() => setSwitching(null)}
+      />
       {restoring && (
         <ImpactDialog
           open
@@ -257,6 +275,7 @@ function NodeDetails({
   onSetA,
   onSetB,
   onRestore,
+  onBranch,
 }: {
   map: TimeMap;
   node: MapNode;
@@ -264,6 +283,7 @@ function NodeDetails({
   onSetA: () => void;
   onSetB: () => void;
   onRestore: () => void;
+  onBranch: () => void;
 }) {
   const route = node.origin_scheme_name
     ? `${t.map.filterScheme(node.origin_scheme_name)}${map.schemes.find((s) => s.scheme_id === node.origin_scheme_id)?.cleared ? t.map.clearedScheme : ""}`
@@ -286,6 +306,9 @@ function NodeDetails({
       <Flex vertical gap={8}>
         <Button icon={<FolderOpenOutlined />} disabled={node.cleared} onClick={onFiles}>
           {t.node.viewFiles}
+        </Button>
+        <Button icon={<BranchesOutlined />} disabled={node.cleared} onClick={onBranch}>
+          {t.schemes.createFromNode}
         </Button>
         <Button icon={<RollbackOutlined />} disabled={node.cleared} onClick={onRestore}>
           {t.restoreVersion.button}
