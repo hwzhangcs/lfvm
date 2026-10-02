@@ -1,0 +1,5 @@
+# 所有平台检出时统一使用 LF 换行，避免 Windows 上格式检查（Biome、rustfmt）因 CRLF 报错
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
