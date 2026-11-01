@@ -1,38 +1,29 @@
 import {
   AimOutlined,
   BranchesOutlined,
+  CloseOutlined,
   CompressOutlined,
   DiffOutlined,
   ExportOutlined,
   FolderOpenOutlined,
+  MinusOutlined,
+  PlusOutlined,
   RollbackOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import {
-  Alert,
-  Button,
-  Card,
-  DatePicker,
-  Descriptions,
-  Empty,
-  Flex,
-  Input,
-  Select,
-  Space,
-  Spin,
-  Typography,
-  theme,
-} from "antd";
-import type { Dayjs } from "dayjs";
+import { Alert, Button, DatePicker, Empty, Input, Select, Skeleton, Space, Tooltip, Typography, theme } from "antd";
+import dayjs, { type Dayjs } from "dayjs";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { api, errorMessage, inDesktop, type MapNode, queryKeys, type TimeMap } from "../api";
 import { ImpactDialog } from "../components/ImpactDialog";
+import { Delta, Page, PageHeader } from "../components/ui";
 import { OutputDialog, type OutputTarget } from "../features/output/OutputDialog";
 import { CreateSchemeModal, SwitchFlow } from "../features/schemes/SchemeDialogs";
 import {
   COL,
+  laneColor,
   layoutMap,
   type MapFilter,
   type MapLayout,
@@ -50,6 +41,11 @@ interface View {
 
 const K_MIN = 0.2;
 const K_MAX = 3;
+/** 适应窗口时最多放大到的比例，避免版本很少时节点被放得过大。 */
+const K_FIT_MAX = 1.25;
+/** 左侧泳道标签占用的宽度，适应窗口时让出这块区域。 */
+const GUTTER = 168;
+const GRID = 24;
 
 /** 时间地图（SRS 3.3.2.1、表 8-3）：版本节点、方案走向及起点、节点详情；缩放、平移、按日期/说明定位。 */
 export function TimeMapPage() {
@@ -97,7 +93,7 @@ export function TimeMapPage() {
     if (id) canvas.current?.center(id);
   };
 
-  // 打开时定位到当前所在路线的最新版本
+  // 打开时选中当前所在路线的最新版本：整张图放得下就整体显示，否则以它为中心
   useEffect(() => {
     if (!map.data || selected) return;
     const head = map.data.active_scheme_id
@@ -105,102 +101,140 @@ export function TimeMapPage() {
       : map.data.default_head;
     if (head) {
       setSelected(head);
-      requestAnimationFrame(() => canvas.current?.center(head));
+      requestAnimationFrame(() => canvas.current?.initial(head));
     }
   }, [map.data, selected]);
 
-  if (map.error) return <Alert type="error" showIcon title={errorMessage(map.error)} />;
-  if (!map.data || !layout) return <Spin style={{ display: "block", marginTop: 80 }} />;
+  if (map.error) {
+    return (
+      <Page>
+        <Alert type="error" showIcon title={errorMessage(map.error)} />
+      </Page>
+    );
+  }
+  if (!map.data || !layout) {
+    return (
+      <Page>
+        <Skeleton active paragraph={{ rows: 8 }} />
+      </Page>
+    );
+  }
   if (map.data.nodes.length === 0) {
     return (
-      <Card title={t.map.title}>
-        <Empty description={t.map.empty} />
-      </Card>
+      <Page>
+        <PageHeader title={t.map.title} />
+        <div className="lf-panel" style={{ padding: "64px 0" }}>
+          <Empty description={t.map.empty} />
+        </div>
+      </Page>
     );
   }
 
-  const node = map.data.nodes.find((n) => n.version_id === selected) ?? null;
+  const data = map.data;
+  const node = data.nodes.find((n) => n.version_id === selected) ?? null;
   const label = (id: string | null) => {
-    const n = id ? map.data?.nodes.find((x) => x.version_id === id) : undefined;
+    const n = id ? data.nodes.find((x) => x.version_id === id) : undefined;
     return n ? versionLabel(n.seq) : "—";
   };
+  const liveSchemes = data.schemes.filter((s) => !s.cleared);
   const schemeOptions = [
     { value: "all", label: t.map.filterAll },
     { value: "default", label: t.map.filterDefault },
-    ...map.data.schemes
-      .filter((s) => !s.cleared)
-      .map((s) => ({ value: s.scheme_id, label: t.map.filterScheme(s.name) })),
+    ...liveSchemes.map((s) => ({ value: s.scheme_id, label: t.map.filterScheme(s.name) })),
   ];
 
   return (
-    <Flex vertical gap={12} style={{ height: "100%" }}>
-      {map.data.over_scale && <Alert type="info" showIcon title={t.overScale} />}
-      <Card size="small">
-        <Flex gap={12} wrap align="center">
-          <Select
-            style={{ width: 200 }}
-            value={filter.kind === "scheme" ? filter.schemeId : filter.kind}
-            options={schemeOptions}
-            onChange={(v) => setFilter(v === "all" || v === "default" ? { kind: v } : { kind: "scheme", schemeId: v })}
-          />
-          <DatePicker.RangePicker
-            value={range}
-            onChange={(v) => {
-              setRange(v);
-              setCursor(0);
-            }}
-            placeholder={[t.map.dateRange, t.map.dateRange]}
-            allowEmpty={[true, true]}
-          />
-          <Input
-            allowClear
-            prefix={<SearchOutlined />}
-            placeholder={t.map.keyword}
-            style={{ width: 220 }}
-            value={keyword}
-            onChange={(e) => {
-              setKeyword(e.target.value);
-              setCursor(0);
-            }}
-            onPressEnter={() => locate(0)}
-          />
-          <Space.Compact>
-            <Button icon={<AimOutlined />} disabled={matches.length === 0} onClick={() => locate(0)}>
-              {t.map.locate}
-            </Button>
-            <Button disabled={matches.length < 2} onClick={() => locate(1)}>
-              ›
-            </Button>
-          </Space.Compact>
-          {(keyword.trim() || range) && (
-            <Typography.Text type={matches.length ? "secondary" : "danger"}>
-              {matches.length ? t.map.matches(cursor + 1, matches.length) : t.map.noMatch}
-            </Typography.Text>
-          )}
-          <Button icon={<CompressOutlined />} onClick={() => canvas.current?.fit()}>
-            {t.map.fit}
+    <Page full>
+      <PageHeader title={t.map.title} sub={t.map.summary(data.nodes.length, liveSchemes.length)} />
+      {data.over_scale && <Alert type="info" showIcon title={t.overScale} />}
+      <div className="lf-map-toolbar">
+        <Select
+          style={{ width: 180 }}
+          value={filter.kind === "scheme" ? filter.schemeId : filter.kind}
+          options={schemeOptions}
+          onChange={(v) => setFilter(v === "all" || v === "default" ? { kind: v } : { kind: "scheme", schemeId: v })}
+        />
+        <DatePicker.RangePicker
+          value={range}
+          onChange={(v) => {
+            setRange(v);
+            setCursor(0);
+          }}
+          placeholder={[t.map.dateRange, t.map.dateRange]}
+          allowEmpty={[true, true]}
+          style={{ width: 260 }}
+        />
+        <Input
+          allowClear
+          prefix={<SearchOutlined style={{ color: "var(--ant-color-text-tertiary)" }} />}
+          placeholder={t.map.keyword}
+          style={{ width: 220 }}
+          value={keyword}
+          onChange={(e) => {
+            setKeyword(e.target.value);
+            setCursor(0);
+          }}
+          onPressEnter={() => locate(0)}
+        />
+        <Space.Compact>
+          <Button icon={<AimOutlined />} disabled={matches.length === 0} onClick={() => locate(0)}>
+            {t.map.locate}
           </Button>
-          <Typography.Text type="secondary">{t.map.zoomHint}</Typography.Text>
-        </Flex>
-      </Card>
+          <Button disabled={matches.length < 2} onClick={() => locate(1)}>
+            ›
+          </Button>
+        </Space.Compact>
+        {(keyword.trim() || range) && (
+          <Typography.Text type={matches.length ? "secondary" : "danger"}>
+            {matches.length ? t.map.matches(cursor + 1, matches.length) : t.map.noMatch}
+          </Typography.Text>
+        )}
+      </div>
 
-      <Flex gap={12} style={{ flex: 1, minHeight: 360 }}>
+      <div className="lf-map-body">
         <MapCanvas
           ref={canvas}
+          map={data}
           layout={layout}
           selected={selected}
           matches={matches}
           pair={pair}
           onSelect={setSelected}
+          compareBar={
+            <div className="lf-map-overlay lf-map-compare">
+              {pair.a || pair.b ? (
+                <>
+                  <Slot name="A" value={pair.a && label(pair.a)} onClear={() => setPair((p) => ({ ...p, a: null }))} />
+                  <span style={{ color: "var(--ant-color-text-tertiary)" }}>→</span>
+                  <Slot name="B" value={pair.b && label(pair.b)} onClear={() => setPair((p) => ({ ...p, b: null }))} />
+                </>
+              ) : (
+                <span style={{ color: "var(--ant-color-text-tertiary)", paddingInlineEnd: 4 }}>{t.node.pickTwo}</span>
+              )}
+              <Button
+                type="primary"
+                size="small"
+                icon={<DiffOutlined />}
+                disabled={!pair.a || !pair.b}
+                onClick={() =>
+                  pair.a &&
+                  pair.b &&
+                  navigate({
+                    to: "/projects/$projectId/compare",
+                    params: { projectId },
+                    search: { a: pair.a, b: pair.b },
+                  })
+                }
+              >
+                {t.node.compare}
+              </Button>
+            </div>
+          }
         />
-        <Card
-          size="small"
-          style={{ width: 320, flex: "none", overflow: "auto" }}
-          title={node ? versionLabel(node.seq) : t.map.title}
-        >
+        <div className="lf-panel lf-detail">
           {node ? (
             <NodeDetails
-              map={map.data}
+              map={data}
               node={node}
               onFiles={() =>
                 navigate({
@@ -222,31 +256,10 @@ export function TimeMapPage() {
               }
             />
           ) : (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ marginTop: 64 }} />
           )}
-          <Flex vertical gap={8} style={{ marginTop: 16 }}>
-            <Typography.Text type="secondary">
-              {pair.a && pair.b ? t.node.compareBar(label(pair.a), label(pair.b)) : t.node.pickTwo}
-            </Typography.Text>
-            <Button
-              type="primary"
-              icon={<DiffOutlined />}
-              disabled={!pair.a || !pair.b}
-              onClick={() =>
-                pair.a &&
-                pair.b &&
-                navigate({
-                  to: "/projects/$projectId/compare",
-                  params: { projectId },
-                  search: { a: pair.a, b: pair.b },
-                })
-              }
-            >
-              {t.node.compare}
-            </Button>
-          </Flex>
-        </Card>
-      </Flex>
+        </div>
+      </div>
       <OutputDialog projectId={projectId} target={output} onClose={() => setOutput(null)} />
       <CreateSchemeModal
         open={!!branching}
@@ -277,7 +290,26 @@ export function TimeMapPage() {
           onClose={() => setRestoring(null)}
         />
       )}
-    </Flex>
+    </Page>
+  );
+}
+
+function Slot({ name, value, onClear }: { name: string; value: string | null; onClear: () => void }) {
+  return (
+    <span className="lf-slot">
+      <b>{name}</b>
+      {value ?? "—"}
+      {value && (
+        <Button
+          type="text"
+          size="small"
+          icon={<CloseOutlined style={{ fontSize: 10 }} />}
+          aria-label={t.node.clearSlot}
+          onClick={onClear}
+          style={{ width: 20, height: 20, minWidth: 20 }}
+        />
+      )}
+    </span>
   );
 }
 
@@ -300,103 +332,127 @@ function NodeDetails({
   onBranch: () => void;
   onOutput: (kind: "expand" | "export") => void;
 }) {
+  const schemeIndex = map.schemes.findIndex((s) => s.scheme_id === node.origin_scheme_id);
   const route = node.origin_scheme_name
-    ? `${t.map.filterScheme(node.origin_scheme_name)}${map.schemes.find((s) => s.scheme_id === node.origin_scheme_id)?.cleared ? t.map.clearedScheme : ""}`
+    ? `${t.map.filterScheme(node.origin_scheme_name)}${map.schemes[schemeIndex]?.cleared ? t.map.clearedScheme : ""}`
     : t.map.defaultHistory;
+  const off = node.cleared;
   return (
-    <Flex vertical gap={12}>
-      {node.cleared && <Alert type="warning" showIcon title={t.map.clearedHint} />}
-      <Descriptions column={1} size="small">
-        <Descriptions.Item label={t.node.savedAt}>{formatTime(node.created_at)}</Descriptions.Item>
-        <Descriptions.Item label={t.node.name}>{node.name || t.node.unnamed}</Descriptions.Item>
-        {node.note && <Descriptions.Item label={t.node.note}>{node.note}</Descriptions.Item>}
-        <Descriptions.Item label={t.node.route}>{route}</Descriptions.Item>
-        <Descriptions.Item label={t.node.files}>
-          {node.file_count} / {node.directory_count}
-        </Descriptions.Item>
-        <Descriptions.Item label={t.node.changes}>
-          {t.node.changesValue(node.added, node.modified, node.deleted)}
-        </Descriptions.Item>
-      </Descriptions>
-      <Flex vertical gap={8}>
-        <Button icon={<FolderOpenOutlined />} disabled={node.cleared} onClick={onFiles}>
-          {t.node.viewFiles}
-        </Button>
-        <Button icon={<BranchesOutlined />} disabled={node.cleared} onClick={onBranch}>
-          {t.schemes.createFromNode}
-        </Button>
-        <Button icon={<RollbackOutlined />} disabled={node.cleared} onClick={onRestore}>
-          {t.restoreVersion.button}
-        </Button>
-        <Space.Compact block>
-          <Button
-            style={{ width: "50%" }}
-            icon={<FolderOpenOutlined />}
-            disabled={node.cleared}
-            onClick={() => onOutput("expand")}
-          >
+    <>
+      <div className="lf-detail-head">
+        <h2>
+          {versionLabel(node.seq)}
+          <small>{node.name || t.node.unnamed}</small>
+        </h2>
+        {node.note && <div className="lf-detail-note">{node.note}</div>}
+      </div>
+      <div className="lf-detail-body">
+        {off && <Alert type="warning" showIcon title={t.map.clearedHint} />}
+        <dl className="lf-kv" style={{ margin: 0 }}>
+          <dt>{t.node.savedAt}</dt>
+          <dd>{formatTime(node.created_at)}</dd>
+          <dt>{t.node.route}</dt>
+          <dd>
+            <span className="lf-meta" style={{ color: "inherit" }}>
+              <i
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: laneColor(schemeIndex + 1),
+                  flex: "none",
+                }}
+              />
+              {route}
+            </span>
+          </dd>
+          <dt>{t.node.files}</dt>
+          <dd>
+            {node.file_count} / {node.directory_count}
+          </dd>
+          <dt>{t.node.changes}</dt>
+          <dd title={t.node.changesValue(node.added, node.modified, node.deleted)}>
+            <Delta added={node.added} modified={node.modified} deleted={node.deleted} />
+          </dd>
+        </dl>
+        <div className="lf-actions">
+          <Button className="wide" type="primary" icon={<FolderOpenOutlined />} disabled={off} onClick={onFiles}>
+            {t.node.viewFiles}
+          </Button>
+          <Button className="wide" icon={<BranchesOutlined />} disabled={off} onClick={onBranch}>
+            {t.schemes.createFromNode}
+          </Button>
+          <Button icon={<FolderOpenOutlined />} disabled={off} onClick={() => onOutput("expand")}>
             {t.output.expand}
           </Button>
-          <Button
-            style={{ width: "50%" }}
-            icon={<ExportOutlined />}
-            disabled={node.cleared}
-            onClick={() => onOutput("export")}
-          >
+          <Button icon={<ExportOutlined />} disabled={off} onClick={() => onOutput("export")}>
             {t.output.export}
           </Button>
-        </Space.Compact>
-        <Space.Compact block>
-          <Button style={{ width: "50%" }} disabled={node.cleared} onClick={onSetA}>
+          <Button disabled={off} onClick={onSetA}>
             {t.node.setA}
           </Button>
-          <Button style={{ width: "50%" }} disabled={node.cleared} onClick={onSetB}>
+          <Button disabled={off} onClick={onSetB}>
             {t.node.setB}
           </Button>
-        </Space.Compact>
-      </Flex>
-    </Flex>
+        </div>
+        <div className="lf-danger-zone">
+          <Button danger icon={<RollbackOutlined />} disabled={off} onClick={onRestore}>
+            {t.restoreVersion.button}
+          </Button>
+          <span>{t.node.restoreHint}</span>
+        </div>
+      </div>
+    </>
   );
 }
 
 interface MapCanvasHandle {
   center: (versionId: string) => void;
   fit: () => void;
+  initial: (versionId: string) => void;
 }
 
 function MapCanvas({
   ref,
+  map,
   layout,
   selected,
   matches,
   pair,
   onSelect,
+  compareBar,
 }: {
   ref: React.Ref<MapCanvasHandle>;
+  map: TimeMap;
   layout: MapLayout;
   selected: string | null;
   matches: string[];
   pair: { a: string | null; b: string | null };
   onSelect: (id: string) => void;
+  compareBar: React.ReactNode;
 }) {
   const { token } = theme.useToken();
   const box = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>({ x: 0, y: 0, k: 1 });
+  const [dragging, setDragging] = useState(false);
   const drag = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean; hit: string | null } | null>(
     null,
   );
   const matchSet = useMemo(() => new Set(matches), [matches]);
   const byId = useMemo(() => new Map(layout.nodes.map((p) => [p.node.version_id, p])), [layout]);
 
-  const fit = useCallback(() => {
+  const fitView = useCallback((): View | null => {
     const el = box.current;
-    if (!el) return;
-    const k = Math.min(
-      K_MAX,
-      Math.max(K_MIN, Math.min(el.clientWidth / layout.width, el.clientHeight / layout.height)),
-    );
-    setView({ x: (el.clientWidth - layout.width * k) / 2, y: (el.clientHeight - layout.height * k) / 2, k });
+    if (!el) return null;
+    const w = el.clientWidth - GUTTER;
+    const k = Math.min(K_FIT_MAX, Math.max(K_MIN, Math.min(w / layout.width, el.clientHeight / layout.height)));
+    return { x: GUTTER + (w - layout.width * k) / 2, y: (el.clientHeight - layout.height * k) / 2, k };
   }, [layout]);
+
+  const fit = useCallback(() => {
+    const v = fitView();
+    if (v) setView(v);
+  }, [fitView]);
 
   const center = useCallback(
     (id: string) => {
@@ -408,7 +464,27 @@ function MapCanvas({
     [byId],
   );
 
-  useImperativeHandle(ref, () => ({ center, fit }), [center, fit]);
+  const initial = useCallback(
+    (id: string) => {
+      const v = fitView();
+      if (v && v.k >= 0.75) setView(v);
+      else center(id);
+    },
+    [fitView, center],
+  );
+
+  useImperativeHandle(ref, () => ({ center, fit, initial }), [center, fit, initial]);
+
+  const zoomBy = (factor: number) => {
+    const el = box.current;
+    if (!el) return;
+    const mx = el.clientWidth / 2;
+    const my = el.clientHeight / 2;
+    setView((v) => {
+      const k = Math.min(K_MAX, Math.max(K_MIN, v.k * factor));
+      return { k, x: mx - ((mx - v.x) * k) / v.k, y: my - ((my - v.y) * k) / v.k };
+    });
+  };
 
   // 滚轮缩放（以鼠标位置为中心）。需要非被动监听才能阻止页面滚动。
   useEffect(() => {
@@ -428,24 +504,22 @@ function MapCanvas({
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
-  const markerOffsets = new Map<string, number>();
+  const heads = new Set(layout.markers.filter((m) => m.kind === "head").map((m) => m.versionId));
+  const activeLane = map.active_scheme_id ? map.schemes.findIndex((s) => s.scheme_id === map.active_scheme_id) + 1 : 0;
+  const colors = { text: token.colorTextSecondary, faint: token.colorTextTertiary, bg: token.colorBgContainer };
 
   return (
     <div
       ref={box}
       role="application"
+      className="lf-map-canvas"
       style={{
-        flex: 1,
-        position: "relative",
-        overflow: "hidden",
-        cursor: drag.current ? "grabbing" : "grab",
-        background: token.colorBgContainer,
-        border: `1px solid ${token.colorBorderSecondary}`,
-        borderRadius: token.borderRadiusLG,
-        touchAction: "none",
-        userSelect: "none",
+        cursor: dragging ? "grabbing" : "grab",
+        backgroundSize: `${GRID * view.k}px ${GRID * view.k}px`,
+        backgroundPosition: `${view.x}px ${view.y}px`,
       }}
       onPointerDown={(e) => {
+        if ((e.target as Element).closest(".lf-map-overlay")) return;
         // 指针被捕获后 pointerup 的目标是容器本身，因此在按下时记录点中的节点
         const hit = (e.target as Element).closest("[data-version]")?.getAttribute("data-version") ?? null;
         drag.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false, hit };
@@ -456,34 +530,33 @@ function MapCanvas({
         if (!d) return;
         const dx = e.clientX - d.x;
         const dy = e.clientY - d.y;
-        if (Math.abs(dx) + Math.abs(dy) > 3) d.moved = true;
+        if (!d.moved && Math.abs(dx) + Math.abs(dy) > 3) {
+          d.moved = true;
+          setDragging(true);
+        }
         if (d.moved) setView((v) => ({ ...v, x: d.vx + dx, y: d.vy + dy }));
       }}
       onPointerUp={() => {
         const d = drag.current;
         drag.current = null;
+        setDragging(false);
         if (d && !d.moved && d.hit) onSelect(d.hit);
       }}
     >
-      <svg width="100%" height="100%" aria-label={t.map.title}>
+      <svg width="100%" height="100%" aria-label={t.map.title} style={{ display: "block" }}>
         <title>{t.map.title}</title>
         <g transform={`translate(${view.x},${view.y}) scale(${view.k})`}>
           {layout.lanes.map((l) => (
-            <g key={l.lane}>
-              <line
-                x1={0}
-                x2={layout.width}
-                y1={l.y}
-                y2={l.y}
-                stroke={l.color}
-                strokeOpacity={0.12}
-                strokeWidth={28}
-                strokeLinecap="round"
-              />
-              <text x={8} y={l.y - 20} fontSize={12} fill={l.color} opacity={l.cleared ? 0.5 : 0.9}>
-                {l.label}
-              </text>
-            </g>
+            <line
+              key={l.lane}
+              x1={-4000}
+              x2={layout.width + 4000}
+              y1={l.y}
+              y2={l.y}
+              stroke={l.color}
+              strokeOpacity={l.cleared ? 0.04 : 0.08}
+              strokeWidth={30}
+            />
           ))}
           {layout.edges.map((e) => (
             <path
@@ -491,44 +564,69 @@ function MapCanvas({
               d={edgePath(e.from, e.to)}
               fill="none"
               stroke={e.color}
-              strokeWidth={2.5}
-              opacity={0.8}
+              strokeWidth={2}
+              strokeLinecap="round"
             />
           ))}
-          {layout.markers.map((m) => {
-            const p = byId.get(m.versionId);
-            if (!p) return null;
-            const off = markerOffsets.get(m.versionId) ?? 0;
-            markerOffsets.set(m.versionId, off + 1);
-            const text = m.kind === "base" ? t.map.base(m.label) : t.map.head(m.label);
-            const y = p.y + 26 + off * 16;
-            return (
-              <text
-                key={`${m.kind}-${m.label}-${m.versionId}`}
-                x={p.x}
-                y={y + 16}
-                fontSize={11}
-                textAnchor="middle"
-                fill={m.color}
-              >
-                {m.kind === "base" ? "⚑ " : "★ "}
-                {text}
-              </text>
-            );
-          })}
           {layout.nodes.map((p) => (
             <NodeMark
               key={p.node.version_id}
               p={p}
               selected={p.node.version_id === selected}
               matched={matchSet.has(p.node.version_id)}
+              head={heads.has(p.node.version_id)}
               tag={pair.a === p.node.version_id ? "A" : pair.b === p.node.version_id ? "B" : null}
-              text={token.colorText}
-              bg={token.colorBgContainer}
+              colors={colors}
+              primary={token.colorPrimary}
             />
           ))}
         </g>
       </svg>
+
+      <div className="lf-map-fade" />
+      {layout.lanes.map((l) => {
+        const s = l.lane > 0 ? map.schemes[l.lane - 1] : undefined;
+        const base = s && map.nodes.find((n) => n.version_id === s.base_version_id);
+        return (
+          <div
+            key={l.lane}
+            className="lf-map-lane-label"
+            style={{ top: view.y + l.y * view.k, opacity: l.cleared ? 0.6 : 1 }}
+          >
+            <i style={{ background: l.color }} />
+            <strong>{l.label}</strong>
+            {base && <span>{t.map.startsAt(versionLabel(base.seq))}</span>}
+            {l.lane === activeLane && <em>{t.map.current}</em>}
+          </div>
+        );
+      })}
+
+      {compareBar}
+
+      <div className="lf-map-overlay lf-map-zoom" title={t.map.zoomHint}>
+        <Tooltip title={t.map.zoomOut}>
+          <Button
+            type="text"
+            size="small"
+            icon={<MinusOutlined />}
+            aria-label={t.map.zoomOut}
+            onClick={() => zoomBy(1 / 1.25)}
+          />
+        </Tooltip>
+        <span className="lf-zoom-value lf-num">{Math.round(view.k * 100)}%</span>
+        <Tooltip title={t.map.zoomIn}>
+          <Button
+            type="text"
+            size="small"
+            icon={<PlusOutlined />}
+            aria-label={t.map.zoomIn}
+            onClick={() => zoomBy(1.25)}
+          />
+        </Tooltip>
+        <Tooltip title={t.map.fit}>
+          <Button type="text" size="small" icon={<CompressOutlined />} aria-label={t.map.fit} onClick={fit} />
+        </Tooltip>
+      </div>
     </div>
   );
 }
@@ -543,42 +641,70 @@ function NodeMark({
   p,
   selected,
   matched,
+  head,
   tag,
-  text,
-  bg,
+  colors,
+  primary,
 }: {
   p: PlacedNode;
   selected: boolean;
   matched: boolean;
+  head: boolean;
   tag: "A" | "B" | null;
-  text: string;
-  bg: string;
+  colors: { text: string; faint: string; bg: string };
+  primary: string;
 }) {
   const n = p.node;
+  const r = n.name ? 8.5 : 7;
   return (
     <g data-version={n.version_id} style={{ cursor: "pointer" }}>
       <title>
         {versionLabel(n.seq)} {n.name} {formatTime(n.created_at)}
+        {n.note ? `\n${n.note}` : ""}
         {n.cleared ? `（${t.map.clearedNode}）` : ""}
       </title>
-      {matched && <circle cx={p.x} cy={p.y} r={20} fill="#fadb14" opacity={0.45} />}
-      {selected && <circle cx={p.x} cy={p.y} r={17} fill="none" stroke={p.color} strokeWidth={2} />}
+      {/* 扩大点击范围 */}
+      <circle cx={p.x} cy={p.y} r={20} fill="transparent" />
+      {matched && (
+        <circle cx={p.x} cy={p.y} r={16} fill="none" stroke="#d4880f" strokeWidth={2} strokeDasharray="4 3" />
+      )}
+      {selected && (
+        <circle cx={p.x} cy={p.y} r={14} fill={p.color} fillOpacity={0.16} stroke={p.color} strokeWidth={1.5} />
+      )}
       <circle
         cx={p.x}
         cy={p.y}
-        r={11}
-        fill={n.cleared ? bg : p.color}
-        stroke={p.color}
-        strokeWidth={2.5}
-        strokeDasharray={n.cleared ? "3 3" : undefined}
+        r={r}
+        fill={n.cleared ? colors.bg : p.color}
+        stroke={n.cleared ? p.color : colors.bg}
+        strokeWidth={n.cleared ? 2 : 2.5}
+        strokeDasharray={n.cleared ? "3 2" : undefined}
       />
-      <text x={p.x} y={p.y - 18} fontSize={12} textAnchor="middle" fill={text} fontWeight={selected ? 600 : 400}>
+      <text
+        x={p.x}
+        y={p.y - 20}
+        fontSize={12}
+        textAnchor="middle"
+        fill={selected ? p.color : colors.text}
+        fontWeight={selected ? 700 : 500}
+      >
         {versionLabel(n.seq)}
       </text>
+      <text x={p.x} y={p.y + 27} fontSize={10.5} textAnchor="middle" fill={colors.faint}>
+        {dayjs(n.created_at).format("MM-DD")}
+      </text>
+      {head && (
+        <g>
+          <rect x={p.x + 18} y={p.y - 9} width={32} height={18} rx={9} fill={p.color} fillOpacity={0.14} />
+          <text x={p.x + 34} y={p.y + 4} fontSize={10.5} textAnchor="middle" fill={p.color} fontWeight={600}>
+            {t.map.latest}
+          </text>
+        </g>
+      )}
       {tag && (
         <g>
-          <circle cx={p.x + 13} cy={p.y - 12} r={8} fill="#000" opacity={0.75} />
-          <text x={p.x + 13} y={p.y - 8} fontSize={10} textAnchor="middle" fill="#fff">
+          <rect x={p.x + 13} y={p.y - 33} width={16} height={16} rx={4} fill={primary} />
+          <text x={p.x + 21} y={p.y - 21} fontSize={11} textAnchor="middle" fill="#fff" fontWeight={700}>
             {tag}
           </text>
         </g>

@@ -1,6 +1,43 @@
+/*
+ * 全局样式。颜色引用 antd 的 CSS 变量（--ant-*，见 theme.ts）和下面的 --lf-*，亮色/暗色自动切换。
+ */
+
+:root {
+  --lf-added: #2e9d6a;
+  --lf-modified: #c9820e;
+  --lf-deleted: #d64545;
+  --lf-other: #8a8a96;
+  --lf-added-bg: rgba(46, 157, 106, 0.1);
+  --lf-modified-bg: rgba(201, 130, 14, 0.1);
+  --lf-deleted-bg: rgba(214, 69, 69, 0.1);
+  --lf-other-bg: rgba(138, 138, 150, 0.12);
+  --lf-primary-soft: rgba(94, 106, 210, 0.1);
+  --lf-grid-dot: rgba(20, 20, 30, 0.09);
+  --lf-panel-shadow: 0 1px 2px rgba(20, 20, 30, 0.04);
+  /* body 在 antd 的 CSS 变量作用域之外，单独定义（与 theme.ts 的 bgLayout 一致） */
+  --lf-body-bg: #f6f6f7;
+}
+
+:root[data-theme="dark"] {
+  --lf-added: #3fbf86;
+  --lf-modified: #e3a03a;
+  --lf-deleted: #ef6a6a;
+  --lf-other: #8d8d99;
+  --lf-added-bg: rgba(63, 191, 134, 0.14);
+  --lf-modified-bg: rgba(227, 160, 58, 0.14);
+  --lf-deleted-bg: rgba(239, 106, 106, 0.14);
+  --lf-other-bg: rgba(141, 141, 153, 0.16);
+  --lf-primary-soft: rgba(94, 106, 210, 0.2);
+  --lf-grid-dot: rgba(255, 255, 255, 0.07);
+  --lf-panel-shadow: none;
+  --lf-body-bg: #111113;
+}
+
 html,
 body,
-#root {
+#root,
+/* antd 的 <App> 会多包一层 div，不设高度时整个布局被内容撑高，内容区无法滚动 */
+#root > .ant-app {
   height: 100%;
   margin: 0;
 }
@@ -9,4 +46,883 @@ body {
   /* 界面文字不截断、控件不重叠（SRS 表 2-2：100%～200% 缩放） */
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  background: var(--lf-body-bg);
+}
+
+::selection {
+  background: rgba(94, 106, 210, 0.25);
+}
+
+/* 细滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ant-color-border) transparent;
+}
+
+.lf-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ───── 外框：左侧导航 + 右侧内容面板 ───── */
+
+.lf-shell {
+  display: flex;
+  height: 100%;
+  background: var(--ant-color-bg-layout);
+}
+
+.lf-sider {
+  width: 232px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0;
+  overflow-y: auto;
+}
+
+.lf-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 18px 14px;
+  color: var(--ant-color-text);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.lf-brand-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 13px;
+  background: linear-gradient(135deg, #7b84e6, #5e6ad2 55%, #4b55b8);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.lf-project-switch {
+  margin: 0 8px 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--ant-color-border-secondary);
+  background: var(--ant-color-bg-container);
+  box-shadow: var(--lf-panel-shadow);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: start;
+  width: calc(100% - 16px);
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s;
+}
+
+.lf-project-switch:hover {
+  border-color: var(--ant-color-border);
+}
+
+.lf-project-switch-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.lf-project-switch-text strong {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lf-project-switch-text span {
+  font-size: 12px;
+  color: var(--ant-color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lf-sider-section {
+  padding: 10px 18px 4px;
+  font-size: 12px;
+  color: var(--ant-color-text-tertiary);
+}
+
+.lf-sider .ant-menu-item-selected {
+  font-weight: 500;
+}
+
+.lf-main {
+  flex: 1;
+  min-width: 0;
+  margin: 8px 8px 8px 0;
+  border-radius: 10px;
+  border: 1px solid var(--ant-color-border-secondary);
+  background: var(--ant-color-bg-container);
+  box-shadow: var(--lf-panel-shadow);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.lf-page {
+  padding: 20px 28px 28px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.lf-page.full {
+  padding-bottom: 16px;
+}
+
+/* ───── 页面标题 ───── */
+
+.lf-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.lf-page-header > :first-child {
+  flex: 1 1 360px;
+}
+
+.lf-page-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  color: var(--ant-color-text);
+}
+
+.lf-page-header .lf-sub {
+  margin-top: 4px;
+  color: var(--ant-color-text-secondary);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.lf-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ant-color-text);
+}
+
+/* ───── 卡片、面板 ───── */
+
+.lf-panel {
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 10px;
+  background: var(--ant-color-bg-container);
+}
+
+.lf-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ant-color-text-secondary);
+  min-width: 0;
+}
+
+.lf-meta .anticon {
+  color: var(--ant-color-text-tertiary);
+}
+
+/* ───── 变化类型 ───── */
+
+.lf-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.lf-kind::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.lf-kind.added {
+  color: var(--lf-added);
+}
+.lf-kind.modified {
+  color: var(--lf-modified);
+}
+.lf-kind.deleted {
+  color: var(--lf-deleted);
+}
+.lf-kind.other {
+  color: var(--lf-other);
+}
+
+.lf-delta {
+  display: inline-flex;
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+.lf-delta .added {
+  color: var(--lf-added);
+}
+.lf-delta .modified {
+  color: var(--lf-modified);
+}
+.lf-delta .deleted {
+  color: var(--lf-deleted);
+}
+
+/* 统计块，同时作为筛选按钮 */
+.lf-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.lf-tile {
+  position: relative;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--ant-color-border-secondary);
+  background: var(--ant-color-bg-container);
+  text-align: start;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.lf-tile:hover {
+  border-color: var(--ant-color-border);
+}
+
+.lf-tile.active {
+  border-color: var(--ant-color-primary);
+  background: var(--lf-primary-soft);
+}
+
+.lf-tile:focus-visible {
+  outline: 2px solid var(--ant-color-primary);
+  outline-offset: 1px;
+}
+
+.lf-tile-label {
+  font-size: 13px;
+  color: var(--ant-color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lf-tile-value {
+  margin-top: 4px;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 30px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 路径：目录淡、文件名突出 */
+.lf-path {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lf-path .anticon {
+  color: var(--ant-color-text-tertiary);
+  flex: none;
+}
+
+.lf-path-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lf-path-dir {
+  color: var(--ant-color-text-tertiary);
+}
+
+/* ───── 项目列表 ───── */
+
+.lf-home {
+  height: 100%;
+  overflow: auto;
+  background: var(--ant-color-bg-layout);
+}
+
+.lf-home-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 28px 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.lf-home-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lf-home-top .lf-brand {
+  padding: 0;
+}
+
+.lf-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 8px 0 4px;
+}
+
+.lf-hero h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: var(--ant-color-text);
+}
+
+.lf-hero p {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: var(--ant-color-text-secondary);
+}
+
+.lf-home-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lf-continue {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 22px;
+  border-radius: 14px;
+  border: 1px solid var(--ant-color-border-secondary);
+  background:
+    radial-gradient(120% 140% at 0% 0%, var(--lf-primary-soft), transparent 55%), var(--ant-color-bg-container);
+  box-shadow: var(--lf-panel-shadow);
+  flex-wrap: wrap;
+}
+
+.lf-continue-main {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.lf-continue-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ant-color-text);
+}
+
+.lf-continue-path {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ant-color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lf-continue-meta {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 13px;
+}
+
+.lf-continue-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lf-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.lf-step {
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px solid var(--ant-color-border-secondary);
+  background: var(--ant-color-bg-container);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lf-step-no {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ant-color-primary);
+  background: var(--lf-primary-soft);
+  margin-bottom: 4px;
+}
+
+.lf-step strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ant-color-text);
+}
+
+.lf-step p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ant-color-text-secondary);
+}
+
+.lf-project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.lf-project-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--ant-color-border-secondary);
+  background: var(--ant-color-bg-container);
+  box-shadow: var(--lf-panel-shadow);
+  cursor: pointer;
+  text-align: start;
+  font: inherit;
+  color: inherit;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    transform 0.15s;
+}
+
+.lf-project-card:hover {
+  border-color: var(--ant-color-border);
+  box-shadow: var(--ant-box-shadow-tertiary);
+}
+
+.lf-project-card:focus-visible {
+  outline: 2px solid var(--ant-color-primary);
+  outline-offset: 1px;
+}
+
+.lf-project-card.disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.lf-project-card.disabled:hover {
+  box-shadow: var(--lf-panel-shadow);
+}
+
+.lf-project-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  color: var(--ant-color-primary);
+  background: var(--lf-primary-soft);
+  flex: none;
+}
+
+.lf-project-card.disabled .lf-project-icon {
+  color: var(--ant-color-text-tertiary);
+  background: var(--ant-color-fill-tertiary);
+}
+
+.lf-project-card-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.lf-project-card-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lf-project-card-title strong {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lf-project-card-title span {
+  font-size: 12px;
+  color: var(--ant-color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lf-project-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ant-color-text-tertiary);
+  min-height: 24px;
+}
+
+.lf-dropzone {
+  border: 1.5px dashed var(--ant-color-border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  color: var(--ant-color-text-tertiary);
+  text-align: center;
+  font-size: 13px;
+  min-height: 128px;
+}
+
+.lf-project-grid .lf-dropzone {
+  min-height: 0;
+}
+
+.lf-dropzone.large {
+  min-height: 300px;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.lf-dropzone-icon {
+  font-size: 28px;
+  color: var(--ant-color-text-quaternary);
+}
+
+.lf-dropzone.large .lf-dropzone-icon {
+  font-size: 44px;
+  color: var(--ant-color-primary);
+  opacity: 0.8;
+}
+
+.lf-dropzone-title {
+  font-size: 16px;
+  color: var(--ant-color-text);
+  font-weight: 600;
+}
+
+/* ───── 时间地图 ───── */
+
+.lf-map-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lf-map-body {
+  flex: 1;
+  min-height: 380px;
+  display: flex;
+  gap: 12px;
+}
+
+.lf-map-canvas {
+  flex: 1;
+  min-height: 360px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--ant-color-border-secondary);
+  background-color: var(--ant-color-bg-layout);
+  background-image: radial-gradient(var(--lf-grid-dot) 1px, transparent 1px);
+  touch-action: none;
+  user-select: none;
+}
+
+/* 左侧渐隐：平移到泳道标签下方的节点逐渐淡出 */
+.lf-map-fade {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 150px;
+  background: linear-gradient(to right, var(--ant-color-bg-layout) 35%, transparent);
+  pointer-events: none;
+}
+
+.lf-map-lane-label {
+  position: absolute;
+  left: 12px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+  background: var(--ant-color-bg-container);
+  border: 1px solid var(--ant-color-border-secondary);
+  box-shadow: var(--lf-panel-shadow);
+  pointer-events: none;
+  max-width: 40%;
+}
+
+.lf-map-lane-label i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.lf-map-lane-label strong {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lf-map-lane-label span {
+  color: var(--ant-color-text-tertiary);
+}
+
+.lf-map-lane-label em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ant-color-primary);
+  background: var(--lf-primary-soft);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+
+.lf-map-overlay {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--ant-color-bg-container);
+  border: 1px solid var(--ant-color-border-secondary);
+  box-shadow: var(--ant-box-shadow-tertiary);
+}
+
+.lf-map-zoom {
+  right: 12px;
+  bottom: 12px;
+}
+
+.lf-zoom-value {
+  min-width: 44px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ant-color-text-secondary);
+}
+
+.lf-map-compare {
+  left: 12px;
+  bottom: 12px;
+  padding: 4px 4px 4px 12px;
+  font-size: 13px;
+  max-width: calc(100% - 200px);
+}
+
+.lf-map-compare .lf-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 4px 1px 8px;
+  border-radius: 6px;
+  background: var(--ant-color-fill-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lf-map-compare .lf-slot b {
+  color: var(--ant-color-primary);
+}
+
+/* 版本详情 */
+.lf-detail {
+  width: 320px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.lf-detail-head {
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid var(--ant-color-border-secondary);
+}
+
+.lf-detail-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lf-detail-head h2 small {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ant-color-text-secondary);
+}
+
+.lf-detail-note {
+  margin-top: 8px;
+  color: var(--ant-color-text);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.lf-detail-body {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lf-kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  font-size: 13px;
+}
+
+.lf-kv dt {
+  color: var(--ant-color-text-tertiary);
+}
+
+.lf-kv dd {
+  margin: 0;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.lf-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.lf-actions .wide {
+  grid-column: 1 / -1;
+}
+
+.lf-danger-zone {
+  padding-top: 14px;
+  border-top: 1px dashed var(--ant-color-border-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lf-danger-zone span {
+  font-size: 12px;
+  color: var(--ant-color-text-tertiary);
+}
+
+/* 页面切换淡入 */
+@keyframes lf-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.lf-fade {
+  animation: lf-fade-in 0.18s ease-out;
+}
+
+/* ───── 窄窗口（最小窗口放大显示时）：侧栏只留图标，时间地图详情移到下方 ───── */
+
+@media (max-width: 860px) {
+  .lf-sider {
+    width: 64px;
+  }
+  .lf-brand {
+    padding-inline: 20px;
+  }
+  .lf-brand-text,
+  .lf-project-switch-text,
+  .lf-project-switch > .anticon {
+    display: none;
+  }
+  .lf-project-switch {
+    padding: 6px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 960px) {
+  .lf-map-body {
+    flex-direction: column;
+  }
+  .lf-detail {
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lf-fade {
+    animation: none;
+  }
 }

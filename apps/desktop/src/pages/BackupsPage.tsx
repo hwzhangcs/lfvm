@@ -4,7 +4,6 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import {
   Alert,
   Button,
-  Card,
   DatePicker,
   Descriptions,
   Drawer,
@@ -33,6 +32,7 @@ import {
   queryKeys,
 } from "../api";
 import { RestoreFileDialog } from "../components/RestoreFileDialog";
+import { Page, PageHeader } from "../components/ui";
 import { HistoryBrowser } from "../features/history/HistoryBrowser";
 import { t } from "../locales/zh-CN";
 import { formatTime } from "../utils/format";
@@ -109,9 +109,9 @@ export function BackupsPage() {
   ];
 
   return (
-    <Card title={t.backups.title}>
+    <Page>
+      <PageHeader title={t.backups.title} sub={t.backups.desc} />
       <Flex vertical gap={12}>
-        <Alert type="info" showIcon title={t.backups.desc} />
         <Flex gap={12} wrap>
           <DatePicker.RangePicker value={range} onChange={setRange} allowEmpty={[true, true]} />
           <Select
@@ -143,7 +143,7 @@ export function BackupsPage() {
       <Drawer title={t.backups.detail} size={980} open={!!op} onClose={() => select(undefined)} destroyOnHidden>
         {op && <OperationDetailView projectId={projectId} operationId={op} />}
       </Drawer>
-    </Card>
+    </Page>
   );
 }
 

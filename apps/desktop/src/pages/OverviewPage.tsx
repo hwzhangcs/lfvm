@@ -1,22 +1,14 @@
-import { FilterOutlined, FolderOpenOutlined, ReloadOutlined, SaveOutlined } from "@ant-design/icons";
+import {
+  FilterOutlined,
+  FolderOpenOutlined,
+  HistoryOutlined,
+  NodeIndexOutlined,
+  ReloadOutlined,
+  SaveOutlined,
+} from "@ant-design/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import {
-  Alert,
-  App,
-  Button,
-  Card,
-  Descriptions,
-  Empty,
-  Flex,
-  Segmented,
-  Space,
-  Statistic,
-  Table,
-  type TableColumnsType,
-  Tag,
-  Typography,
-} from "antd";
+import { Alert, App, Button, Empty, Flex, Space, Table, type TableColumnsType, Tag, Tooltip, Typography } from "antd";
 import { useState } from "react";
 import {
   api,
@@ -32,16 +24,9 @@ import {
 import { ExclusionsDrawer } from "../components/ExclusionsDrawer";
 import { SaveVersionModal } from "../components/SaveVersionModal";
 import { TaskProgress } from "../components/TaskProgress";
+import { KindLabel, Page, PageHeader, PathText } from "../components/ui";
 import { t } from "../locales/zh-CN";
 import { formatBytes, formatTime, versionLabel } from "../utils/format";
-
-const KIND_COLOR: Record<ChangeKind, string> = {
-  added: "success",
-  modified: "processing",
-  deleted: "error",
-  type_changed: "warning",
-  excluded_now: "default",
-};
 
 /** 项目概览：当前活动方案、比较基准、当前变化，以及保存版本和排除项设置入口（表 8-3）。 */
 export function OverviewPage() {
@@ -73,50 +58,64 @@ export function OverviewPage() {
   const ov = overview.data;
   const cs = changes.data;
 
+  const sep = <span style={{ color: "var(--ant-color-border)" }}>·</span>;
   return (
-    <Flex vertical gap={16}>
-      <Card title={t.nav.overview}>
-        <Descriptions column={{ xs: 1, md: 2 }} size="small">
-          <Descriptions.Item label={t.overview.route}>
-            {ov?.active_scheme ? t.overview.scheme(ov.active_scheme.name) : t.overview.defaultRoute}
-          </Descriptions.Item>
-          <Descriptions.Item label={t.overview.baseline}>
-            {ov?.baseline ? (
-              <Space>
-                <Tag color="blue">{versionLabel(ov.baseline.seq)}</Tag>
-                {ov.baseline.name && <Typography.Text>{ov.baseline.name}</Typography.Text>}
-                <Typography.Text type="secondary">{formatTime(ov.baseline.created_at)}</Typography.Text>
-              </Space>
-            ) : (
-              <Typography.Text type="secondary">{t.overview.noVersion}</Typography.Text>
-            )}
-          </Descriptions.Item>
-          <Descriptions.Item label={t.overview.versionCount}>{ov?.version_count ?? "—"}</Descriptions.Item>
-          <Descriptions.Item label={t.overview.location}>
-            <Space>
-              <Typography.Text ellipsis={{ tooltip: ov?.project.root_path }} style={{ maxWidth: 360 }}>
-                {ov?.project.root_path}
-              </Typography.Text>
-              <Button
-                size="small"
-                type="link"
-                icon={<FolderOpenOutlined />}
-                onClick={() => api.revealProjectFolder(projectId).catch((e) => message.error(errorMessage(e)))}
-              >
-                {t.overview.reveal}
-              </Button>
-            </Space>
-          </Descriptions.Item>
-        </Descriptions>
-      </Card>
-
-      <Card
-        title={t.overview.changesTitle}
+    <Page>
+      <PageHeader
+        title={t.nav.overview}
+        sub={
+          <>
+            <span className="lf-meta">
+              <NodeIndexOutlined />
+              {ov?.active_scheme ? t.overview.scheme(ov.active_scheme.name) : t.overview.defaultRoute}
+            </span>
+            <span className="lf-meta">
+              <HistoryOutlined />
+              {ov?.baseline ? (
+                <>
+                  {t.overview.baseline}
+                  <Tag color="processing" variant="filled" style={{ marginInlineEnd: 0 }}>
+                    {versionLabel(ov.baseline.seq)}
+                  </Tag>
+                  {ov.baseline.name && (
+                    <>
+                      <Typography.Text>{ov.baseline.name}</Typography.Text>
+                      {sep}
+                    </>
+                  )}
+                  <span className="lf-num">{formatTime(ov.baseline.created_at)}</span>
+                </>
+              ) : (
+                t.overview.noVersion
+              )}
+            </span>
+            {ov && <span className="lf-meta">{t.overview.versionCountValue(ov.version_count)}</span>}
+          </>
+        }
         extra={
-          <Space wrap>
-            <Button icon={<ReloadOutlined />} onClick={refresh} disabled={changes.isFetching}>
-              {t.common.refresh}
+          <Tooltip title={ov?.project.root_path}>
+            <Button
+              icon={<FolderOpenOutlined />}
+              onClick={() => api.revealProjectFolder(projectId).catch((e) => message.error(errorMessage(e)))}
+            >
+              {t.overview.reveal}
             </Button>
+          </Tooltip>
+        }
+      />
+
+      <Flex vertical gap={14}>
+        <div className="lf-section-title">
+          {t.overview.changesTitle}
+          <Space wrap>
+            <Tooltip title={t.common.refresh}>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={refresh}
+                disabled={changes.isFetching}
+                aria-label={t.common.refresh}
+              />
+            </Tooltip>
             <Button icon={<FilterOutlined />} onClick={() => setExcluding(true)}>
               {t.overview.exclusions}
             </Button>
@@ -129,16 +128,17 @@ export function OverviewPage() {
               {t.overview.save}
             </Button>
           </Space>
-        }
-      >
+        </div>
         {changes.isFetching ? (
-          <TaskProgress progress={scanProgress} onCancel={stopScan} />
+          <div className="lf-panel" style={{ padding: 16 }}>
+            <TaskProgress progress={scanProgress} onCancel={stopScan} />
+          </div>
         ) : changes.error ? (
           <Alert type="error" showIcon title={errorMessage(changes.error)} />
         ) : cs ? (
           <ChangesBody cs={cs} filter={filter} onFilter={setFilter} />
         ) : null}
-      </Card>
+      </Flex>
 
       {cs && (
         <SaveVersionModal
@@ -163,7 +163,7 @@ export function OverviewPage() {
           void refresh();
         }}
       />
-    </Flex>
+    </Page>
   );
 }
 
@@ -178,7 +178,17 @@ function ChangesBody({
 }) {
   const c = cs.counts;
   const rows = filter === "all" ? cs.items : cs.items.filter((i) => i.kind === filter);
-  const kinds = (Object.keys(t.changeKind) as ChangeKind[]).filter((k) => cs.items.some((i) => i.kind === k));
+  const count = (k: ChangeKind) => cs.items.filter((i) => i.kind === k).length;
+  // 统计块同时是筛选：新增、修改、删除总是显示（数字为文件数），其余类型有才显示
+  const tiles: Array<{ key: ChangeKind | "all"; label: string; value: number }> = [
+    { key: "all", label: t.overview.filterAll, value: cs.items.length },
+    { key: "added", label: t.counts.added, value: c.added },
+    { key: "modified", label: t.counts.modified, value: c.modified },
+    { key: "deleted", label: t.counts.deleted, value: c.deleted },
+    ...(["type_changed", "excluded_now"] as const)
+      .filter((k) => count(k) > 0)
+      .map((k) => ({ key: k, label: t.changeKind[k], value: count(k) })),
+  ];
 
   return (
     <Flex vertical gap={16}>
@@ -202,31 +212,35 @@ function ChangesBody({
       {cs.rules_changed && <Alert type="info" showIcon title={t.overview.rulesChanged} />}
       {!cs.baseline_version_id && <Alert type="info" showIcon title={t.overview.firstHint} />}
 
-      <Flex gap={32} wrap>
-        <Statistic title={t.counts.added} value={c.added} styles={{ content: { color: "#52c41a" } }} />
-        <Statistic title={t.counts.modified} value={c.modified} styles={{ content: { color: "#1677ff" } }} />
-        <Statistic title={t.counts.deleted} value={c.deleted} styles={{ content: { color: "#ff4d4f" } }} />
-        {c.excluded_now > 0 && <Statistic title={t.counts.excluded} value={c.excluded_now} />}
-      </Flex>
-      {(c.dirs_added > 0 || c.dirs_deleted > 0) && (
-        <Typography.Text type="secondary">{t.counts.folders(c.dirs_added, c.dirs_deleted)}</Typography.Text>
-      )}
-
       {cs.items.length === 0 ? (
-        <Empty description={cs.has_changes ? t.overview.firstHint : t.overview.noChanges} />
+        <div className="lf-panel" style={{ padding: "36px 0" }}>
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={cs.has_changes ? t.overview.firstHint : t.overview.noChanges}
+          />
+        </div>
       ) : (
         <>
-          <Segmented
-            value={filter}
-            onChange={(v) => onFilter(v as ChangeKind | "all")}
-            options={[
-              { value: "all", label: `${t.overview.filterAll}（${cs.items.length}）` },
-              ...kinds.map((k) => ({
-                value: k,
-                label: `${t.changeKind[k]}（${cs.items.filter((i) => i.kind === k).length}）`,
-              })),
-            ]}
-          />
+          <div className="lf-tiles" role="tablist">
+            {tiles.map((tile) => (
+              <button
+                key={tile.key}
+                type="button"
+                role="tab"
+                aria-selected={filter === tile.key}
+                className={`lf-tile${filter === tile.key ? " active" : ""}`}
+                onClick={() => onFilter(tile.key)}
+              >
+                <span className="lf-tile-label">
+                  {tile.key === "all" ? tile.label : <KindLabel kind={tile.key}>{tile.label}</KindLabel>}
+                </span>
+                <div className="lf-tile-value">{tile.value}</div>
+              </button>
+            ))}
+          </div>
+          {(c.dirs_added > 0 || c.dirs_deleted > 0) && (
+            <Typography.Text type="secondary">{t.counts.folders(c.dirs_added, c.dirs_deleted)}</Typography.Text>
+          )}
           <ChangeTable rows={rows} />
         </>
       )}
@@ -241,37 +255,49 @@ export function ChangeTable({ rows, height = 420 }: { rows: ChangeItem[]; height
       dataIndex: "path",
       ellipsis: true,
       render: (p: string, r) => (
-        <Typography.Text>
-          {p}
-          {r.entry_type === "directory" && (
-            <Typography.Text type="secondary">　（{t.overview.folder}）</Typography.Text>
-          )}
-        </Typography.Text>
+        <PathText
+          path={p}
+          isDir={r.entry_type === "directory"}
+          suffix={
+            r.entry_type === "directory" && (
+              <Typography.Text type="secondary">　（{t.overview.folder}）</Typography.Text>
+            )
+          }
+        />
       ),
     },
     {
       title: t.overview.status,
       dataIndex: "kind",
       width: 150,
-      render: (k: ChangeKind) => <Tag color={KIND_COLOR[k]}>{t.changeKind[k]}</Tag>,
+      render: (k: ChangeKind) => <KindLabel kind={k}>{t.changeKind[k]}</KindLabel>,
     },
     {
       title: t.overview.size,
       dataIndex: "size",
       width: 110,
       align: "right",
-      render: (s: number | null) => (s === null ? "" : <span title={`${s} 字节`}>{formatBytes(s)}</span>),
+      render: (s: number | null) =>
+        s === null ? (
+          ""
+        ) : (
+          <span className="lf-num" title={`${s} 字节`}>
+            {formatBytes(s)}
+          </span>
+        ),
     },
   ];
   return (
-    <Table
-      rowKey="path"
-      size="small"
-      columns={columns}
-      dataSource={rows}
-      pagination={false}
-      virtual
-      scroll={{ y: height }}
-    />
+    <div className="lf-panel" style={{ overflow: "hidden" }}>
+      <Table
+        rowKey="path"
+        size="small"
+        columns={columns}
+        dataSource={rows}
+        pagination={false}
+        virtual
+        scroll={{ y: height }}
+      />
+    </div>
   );
 }

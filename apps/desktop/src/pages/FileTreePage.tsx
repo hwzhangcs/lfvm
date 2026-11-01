@@ -1,10 +1,10 @@
-import { ArrowLeftOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "@tanstack/react-router";
-import { Alert, Button, Flex, Typography } from "antd";
+import { useParams } from "@tanstack/react-router";
+import { Alert, Button } from "antd";
 import { useState } from "react";
 import { api, type HistoryEntry, inDesktop, queryKeys } from "../api";
 import { RestoreFileDialog } from "../components/RestoreFileDialog";
+import { BackLink, Page, PageHeader } from "../components/ui";
 import { HistoryBrowser } from "../features/history/HistoryBrowser";
 import { t } from "../locales/zh-CN";
 import { formatTime, versionLabel } from "../utils/format";
@@ -21,20 +21,12 @@ export function FileTreePage() {
   const [restoring, setRestoring] = useState<HistoryEntry | null>(null);
 
   return (
-    <Flex vertical gap={12}>
-      <Flex align="center" gap={12} wrap>
-        <Link to="/projects/$projectId/map" params={{ projectId }}>
-          <Button icon={<ArrowLeftOutlined />}>{t.nav.timeMap}</Button>
-        </Link>
-        <Typography.Title level={4} style={{ margin: 0 }}>
-          {t.tree.title(node ? versionLabel(node.seq) : "…")}
-        </Typography.Title>
-        {node && (
-          <Typography.Text type="secondary">
-            {node.name} {formatTime(node.created_at)}
-          </Typography.Text>
-        )}
-      </Flex>
+    <Page>
+      <BackLink projectId={projectId} />
+      <PageHeader
+        title={t.tree.title(node ? versionLabel(node.seq) : "…")}
+        sub={node && `${node.name ? `${node.name} · ` : ""}${formatTime(node.created_at)}`}
+      />
       <Alert type="info" showIcon title={t.tree.readOnly} />
       <HistoryBrowser
         projectId={projectId}
@@ -54,6 +46,6 @@ export function FileTreePage() {
           onClose={() => setRestoring(null)}
         />
       )}
-    </Flex>
+    </Page>
   );
 }

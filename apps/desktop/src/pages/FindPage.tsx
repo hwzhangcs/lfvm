@@ -35,6 +35,7 @@ import {
 } from "../api";
 import { FilePreviewView } from "../components/FilePreviewView";
 import { RestoreFileDialog } from "../components/RestoreFileDialog";
+import { Page, PageHeader } from "../components/ui";
 import { TrailView } from "../features/find/TrailView";
 import { t } from "../locales/zh-CN";
 import { formatBytes, formatTime } from "../utils/format";
@@ -112,7 +113,9 @@ export function FindPage() {
       ellipsis: true,
       render: (_, h) =>
         h.source.kind === "version" ? (
-          <Tag color="blue">{h.source_label}</Tag>
+          <Tag color="processing" variant="filled">
+            {h.source_label}
+          </Tag>
         ) : (
           <Tooltip title={h.source_label}>
             <Tag color="orange">{t.find.backupSource}</Tag>
@@ -149,9 +152,9 @@ export function FindPage() {
   ];
 
   return (
-    <Flex vertical gap={16}>
-      <Card title={t.find.title}>
-        <Typography.Paragraph type="secondary">{t.find.desc}</Typography.Paragraph>
+    <Page>
+      <PageHeader title={t.find.title} sub={t.find.desc} />
+      <div className="lf-panel" style={{ padding: 16 }}>
         <Form form={form} layout="inline" initialValues={{ scope: "all" }} onFinish={submit} style={{ rowGap: 12 }}>
           <Form.Item name="name" label={t.find.name}>
             <Input allowClear placeholder={t.find.namePlaceholder} style={{ width: 200 }} />
@@ -181,7 +184,7 @@ export function FindPage() {
             </Button>
           </Form.Item>
         </Form>
-      </Card>
+      </div>
 
       {query && (
         <Card size="small" title={result.data ? t.find.total(result.data.total) : undefined}>
@@ -234,7 +237,7 @@ export function FindPage() {
           onClose={() => setRestoring(null)}
         />
       )}
-    </Flex>
+    </Page>
   );
 }
 

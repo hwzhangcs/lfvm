@@ -8,8 +8,8 @@ import {
   Card,
   Flex,
   Modal,
+  Skeleton,
   Space,
-  Spin,
   Statistic,
   Table,
   type TableColumnsType,
@@ -31,6 +31,7 @@ import {
   type SchemeUsage,
   type VersionUsage,
 } from "../api";
+import { Page, PageHeader } from "../components/ui";
 import { t } from "../locales/zh-CN";
 import { formatBytes, formatTime, versionLabel } from "../utils/format";
 
@@ -95,9 +96,21 @@ export function StoragePage() {
     });
   };
 
-  if (report.error) return <Alert type="error" showIcon title={errorMessage(report.error)} />;
+  if (report.error) {
+    return (
+      <Page>
+        <Alert type="error" showIcon title={errorMessage(report.error)} />
+      </Page>
+    );
+  }
   const r = report.data;
-  if (!r) return <Spin style={{ display: "block", marginTop: 80 }} />;
+  if (!r) {
+    return (
+      <Page>
+        <Skeleton active paragraph={{ rows: 6 }} />
+      </Page>
+    );
+  }
   const u = r.usage;
 
   const versionCols: TableColumnsType<VersionUsage> = [
@@ -167,12 +180,10 @@ export function StoragePage() {
   const selectable = r.versions.filter((v) => !v.protected).length + r.backups.filter((b) => !b.protected).length;
 
   return (
-    <Flex vertical gap={16}>
-      <Card title={t.storage.title}>
+    <Page>
+      <PageHeader title={t.storage.title} sub={t.storage.desc} />
+      <div className="lf-panel" style={{ padding: 20 }}>
         <Flex vertical gap={16}>
-          <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-            {t.storage.desc}
-          </Typography.Paragraph>
           <Flex gap={40} wrap>
             <Statistic title={t.storage.total} value={formatBytes(u.total_bytes)} />
             <Statistic title={t.storage.versions} value={formatBytes(u.version_bytes)} />
@@ -186,7 +197,7 @@ export function StoragePage() {
             {info.data && `　${t.storage.location(info.data.data_dir)}`}
           </Typography.Text>
         </Flex>
-      </Card>
+      </div>
 
       <Card
         extra={
@@ -286,6 +297,6 @@ export function StoragePage() {
           </Flex>
         )}
       </Modal>
-    </Flex>
+    </Page>
   );
 }
