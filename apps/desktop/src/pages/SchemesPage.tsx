@@ -9,9 +9,10 @@ import {
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
-import { Alert, Button, Card, Flex, Space, Table, type TableColumnsType, Tag, Typography } from "antd";
+import { Alert, Button, Flex, Space, Table, type TableColumnsType, Tag, Typography } from "antd";
 import { useState } from "react";
 import { api, errorMessage, inDesktop, queryKeys, type SchemeInfo, type SwitchTarget } from "../api";
+import { Page, PageHeader } from "../components/ui";
 import { OutputDialog, type OutputTarget } from "../features/output/OutputDialog";
 import { CreateSchemeModal, RenameSchemeModal, SwitchFlow } from "../features/schemes/SchemeDialogs";
 import { laneColor } from "../features/timemap/layout";
@@ -86,10 +87,14 @@ export function SchemesPage() {
       title: t.schemes.name,
       key: "name",
       render: (_, r) => (
-        <Space>
+        <Space style={{ whiteSpace: "nowrap" }}>
           <BranchesOutlined style={{ color: r.color }} />
           <Typography.Text strong>{r.name}</Typography.Text>
-          {r.active && <Tag color="blue">{t.schemes.current}</Tag>}
+          {r.active && (
+            <Tag color="processing" variant="filled">
+              {t.schemes.current}
+            </Tag>
+          )}
         </Space>
       ),
     },
@@ -167,30 +172,31 @@ export function SchemesPage() {
   ];
 
   return (
-    <Card
-      title={t.schemes.title}
-      extra={
-        <Space>
-          <Button
-            icon={<ColumnWidthOutlined />}
-            disabled={(l?.schemes.length ?? 0) < 2}
-            onClick={() => setOutput({ mode: "dual" })}
-          >
-            {t.output.dualTitle}
-          </Button>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            disabled={!l?.default_head && !l?.schemes.length}
-            onClick={() => setCreating(true)}
-          >
-            {t.schemes.create}
-          </Button>
-        </Space>
-      }
-    >
+    <Page>
+      <PageHeader
+        title={t.schemes.title}
+        sub={t.schemes.desc}
+        extra={
+          <Space>
+            <Button
+              icon={<ColumnWidthOutlined />}
+              disabled={(l?.schemes.length ?? 0) < 2}
+              onClick={() => setOutput({ mode: "dual" })}
+            >
+              {t.output.dualTitle}
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              disabled={!l?.default_head && !l?.schemes.length}
+              onClick={() => setCreating(true)}
+            >
+              {t.schemes.create}
+            </Button>
+          </Space>
+        }
+      />
       <Flex vertical gap={12}>
-        <Alert type="info" showIcon title={t.schemes.desc} />
         {list.error ? (
           <Alert type="error" showIcon title={errorMessage(list.error)} />
         ) : (
@@ -222,6 +228,6 @@ export function SchemesPage() {
         label={switching?.label ?? ""}
         onClose={() => setSwitching(null)}
       />
-    </Card>
+    </Page>
   );
 }

@@ -1,6 +1,6 @@
-import { ArrowLeftOutlined, SwapOutlined } from "@ant-design/icons";
+import { SwapOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import {
   Alert,
   Button,
@@ -12,7 +12,7 @@ import {
   Row,
   Segmented,
   Select,
-  Space,
+  Skeleton,
   Spin,
   Table,
   type TableColumnsType,
@@ -22,16 +22,9 @@ import {
 import { useMemo, useState } from "react";
 import { api, type CompareItem, type CompareKind, errorMessage, inDesktop, queryKeys } from "../api";
 import { DiffView } from "../components/DiffView";
+import { BackLink, KindLabel, Page, PageHeader, PathText } from "../components/ui";
 import { t } from "../locales/zh-CN";
 import { formatBytes, formatTime, versionLabel } from "../utils/format";
-
-const KIND_COLOR: Record<CompareKind, string> = {
-  added: "success",
-  deleted: "error",
-  modified: "processing",
-  type_changed: "warning",
-  excluded_in_b: "default",
-};
 
 /** 版本比较（SRS 3.3.2.2、表 8-3“版本比较”）。方向为 A→B。 */
 export function ComparePage() {
@@ -72,31 +65,36 @@ export function ComparePage() {
     navigate({ to: "/projects/$projectId/compare", params: { projectId }, search: next });
   };
 
-  const back = (
-    <Link to="/projects/$projectId/map" params={{ projectId }}>
-      <Button icon={<ArrowLeftOutlined />}>{t.nav.timeMap}</Button>
-    </Link>
-  );
-
   if (result.error) {
     return (
-      <Flex vertical gap={12}>
-        {back}
+      <Page>
+        <BackLink projectId={projectId} />
         <Alert type="error" showIcon title={errorMessage(result.error)} />
-      </Flex>
+      </Page>
     );
   }
   const r = result.data;
-  if (!r) return <Spin style={{ display: "block", marginTop: 80 }} />;
+  if (!r) {
+    return (
+      <Page>
+        <Skeleton active paragraph={{ rows: 8 }} />
+      </Page>
+    );
+  }
 
   const kinds = (Object.keys(t.compare.kinds) as CompareKind[]).filter((k) => r.items.some((i) => i.kind === k));
   const columns: TableColumnsType<CompareItem> = [
-    { title: t.overview.path, dataIndex: "path", ellipsis: true },
+    {
+      title: t.overview.path,
+      dataIndex: "path",
+      ellipsis: true,
+      render: (p: string, i) => <PathText path={p} isDir={i.entry_type === "directory"} />,
+    },
     {
       title: t.overview.status,
       dataIndex: "kind",
       width: 120,
-      render: (k: CompareKind) => <Tag color={KIND_COLOR[k]}>{t.compare.kinds[k]}</Tag>,
+      render: (k: CompareKind) => <KindLabel kind={k}>{t.compare.kinds[k]}</KindLabel>,
     },
     {
       title: t.overview.size,
@@ -111,25 +109,33 @@ export function ComparePage() {
   ];
 
   return (
-    <Flex vertical gap={12}>
-      <Flex align="center" gap={12} wrap>
-        {back}
-        <Typography.Title level={4} style={{ margin: 0 }}>
-          {t.compare.title}
-        </Typography.Title>
-        <Space wrap>
-          <Tag color="blue">
-            A：{versionLabel(r.a.seq)} {r.a.name} · {formatTime(r.a.created_at)}
-          </Tag>
-          →
-          <Tag color="purple">
-            B：{versionLabel(r.b.seq)} {r.b.name} · {formatTime(r.b.created_at)}
-          </Tag>
+    <Page>
+      <BackLink projectId={projectId} />
+      <PageHeader
+        title={t.compare.title}
+        sub={
+          <>
+            <span className="lf-meta">
+              <Tag color="processing" variant="filled" style={{ marginInlineEnd: 0 }}>
+                A
+              </Tag>
+              {versionLabel(r.a.seq)} {r.a.name} · <span className="lf-num">{formatTime(r.a.created_at)}</span>
+            </span>
+            <span style={{ color: "var(--ant-color-text-tertiary)" }}>→</span>
+            <span className="lf-meta">
+              <Tag color="purple" variant="filled" style={{ marginInlineEnd: 0 }}>
+                B
+              </Tag>
+              {versionLabel(r.b.seq)} {r.b.name} · <span className="lf-num">{formatTime(r.b.created_at)}</span>
+            </span>
+          </>
+        }
+        extra={
           <Button icon={<SwapOutlined />} onClick={() => go({ a: b, b: a, scope: scope ?? undefined })}>
             {t.compare.swap}
           </Button>
-        </Space>
-      </Flex>
+        }
+      />
 
       <Card size="small">
         <Flex gap={12} wrap align="center">
@@ -190,7 +196,7 @@ export function ComparePage() {
           </Col>
         </Row>
       )}
-    </Flex>
+    </Page>
   );
 }
 

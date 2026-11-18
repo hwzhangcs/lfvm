@@ -18,6 +18,11 @@ export function formatTime(ms: number): string {
   return dayjs(ms).format("YYYY-MM-DD HH:mm:ss");
 }
 
+/** 相对时间，如“3 天前”。 */
+export function formatAgo(ms: number): string {
+  return dayjs(ms).fromNow();
+}
+
 export function versionLabel(seq: number): string {
   return `V${seq}`;
 }

@@ -4,12 +4,14 @@ import { App as AntApp, ConfigProvider } from "antd";
 import zhCNLocale from "antd/locale/zh_CN";
 import dayjs from "dayjs";
 import "dayjs/locale/zh-cn";
-import { StrictMode, useSyncExternalStore } from "react";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { StrictMode, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { router } from "./router";
 import "./styles.css";
-import { appTheme } from "./theme";
+import { appTheme, useSystemDark } from "./theme";
 
+dayjs.extend(relativeTime);
 dayjs.locale("zh-cn");
 
 const queryClient = new QueryClient({
@@ -19,19 +21,12 @@ const queryClient = new QueryClient({
   },
 });
 
-const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
-function useSystemDark(): boolean {
-  return useSyncExternalStore(
-    (cb) => {
-      darkQuery.addEventListener("change", cb);
-      return () => darkQuery.removeEventListener("change", cb);
-    },
-    () => darkQuery.matches,
-  );
-}
-
 function Root() {
   const dark = useSystemDark();
+  // styles.css 中的自定义颜色（--lf-*）按这个属性切换亮色/暗色；在绘制前设置，避免闪烁
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+  }, [dark]);
   return (
     <ConfigProvider locale={zhCNLocale} theme={appTheme(dark)}>
       <AntApp>

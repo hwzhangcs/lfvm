@@ -11,22 +11,22 @@ export const COL = 72;
 export const ROW = 72;
 export const PAD = 48;
 
-/** 方案配色（第 0 个用于默认历史）。 */
+/** 方案配色（第 0 个用于默认历史，与主色一致）。中等明度，亮色、暗色背景下都清楚。 */
 export const PALETTE = [
-  "#1677ff",
-  "#52c41a",
-  "#fa8c16",
-  "#eb2f96",
-  "#722ed1",
-  "#13c2c2",
-  "#faad14",
-  "#a0d911",
-  "#2f54eb",
-  "#f5222d",
+  "#5e6ad2",
+  "#2f9e8f",
+  "#d4880f",
+  "#d6588a",
+  "#8e5bd0",
+  "#2b8fb8",
+  "#7a9a2e",
+  "#e0703a",
+  "#3e7bd6",
+  "#cf4b4b",
 ];
 
 export function laneColor(lane: number): string {
-  return PALETTE[lane % PALETTE.length] ?? "#1677ff";
+  return PALETTE[lane % PALETTE.length] ?? "#5e6ad2";
 }
 
 /** 显示范围：全部、仅默认历史、或某个方案（含其共同祖先）。 */

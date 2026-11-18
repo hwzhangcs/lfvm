@@ -83,6 +83,8 @@ export const queryKeys = {
   appInfo: ["app-info"] as const,
   projects: ["projects"] as const,
   overview: (projectId: string) => ["overview", projectId] as const,
+  /** 首页用的只读概览（不做打开项目时的恢复处理），与 overview 分开缓存 */
+  projectBrief: (projectId: string) => ["projectBrief", projectId] as const,
   changes: (projectId: string) => ["changes", projectId] as const,
   exclusions: (projectId: string) => ["exclusions", projectId] as const,
   workspaceDir: (projectId: string, dir: string | null) => ["workspace-dir", projectId, dir] as const,
